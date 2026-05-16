@@ -81,7 +81,7 @@ func NowPlayingView(state PlayerState, width int) string {
 }
 
 // progressBar renders a fixed-width progress bar using block characters.
-// filled portion uses "━", unfilled uses "─".
+// filled portion uses "█", unfilled uses "░".
 func progressBar(elapsed, total time.Duration, width int) string {
 	if width <= 0 {
 		return ""

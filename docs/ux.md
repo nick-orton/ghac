@@ -94,10 +94,11 @@ When adding a new named screen, add a corresponding tab entry in
 ## 5. Screen Titles
 
 Each screen renders its own title as the first line of `View()`,
-using `styleTitle` (bold). No additional decoration is required at
-this time, but a separator rule may be added in the future — keep
-title rendering in the screen's own `View()` so it can be updated
-in one place per screen.
+using `styleTitle` (bold). Follow the title with one blank line
+(`\n\n`) before the first content element. No additional decoration
+is required at this time, but a separator rule may be added in the
+future — keep title rendering in the screen's own `View()` so it
+can be updated in one place per screen.
 
 ## 6. Help Screen
 

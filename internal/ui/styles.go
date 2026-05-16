@@ -11,4 +11,7 @@ var (
 	styleTime          = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	styleTabActive     = lipgloss.NewStyle().Bold(true).Underline(true)
 	styleTabInactive   = lipgloss.NewStyle().Faint(true)
+	styleHelpSection   = lipgloss.NewStyle().Bold(true).Underline(true)
+	styleHelpKey       = lipgloss.NewStyle().Bold(true)
+	styleHelpDesc      = lipgloss.NewStyle().Faint(true)
 )
