@@ -87,7 +87,7 @@ func progressBar(elapsed, total time.Duration, width int) string {
 		return ""
 	}
 	if total <= 0 {
-		return strings.Repeat("─", width)
+		return strings.Repeat("░", width)
 	}
 	ratio := float64(elapsed) / float64(total)
 	if ratio < 0 {
@@ -98,8 +98,8 @@ func progressBar(elapsed, total time.Duration, width int) string {
 	}
 	filled := int(ratio * float64(width))
 	empty := width - filled
-	return styleProgressFill.Render(strings.Repeat("━", filled)) +
-		styleProgressEmpty.Render(strings.Repeat("─", empty))
+	return styleProgressFill.Render(strings.Repeat("█", filled)) +
+		styleProgressEmpty.Render(strings.Repeat("░", empty))
 }
 
 // formatTime formats a duration as m:ss (e.g. "3:07"). Handles durations

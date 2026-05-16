@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -185,5 +186,29 @@ func (m Model) View() string {
 		screen = m.help.View()
 	}
 
-	return np + "\n" + screen
+	return np + "\n" + m.tabStripView() + "\n" + screen
+}
+
+// tabStripView renders the tab bar showing all screens with the active one
+// highlighted via bold+underline and inactive ones dimmed.
+func (m Model) tabStripView() string {
+	type tab struct {
+		id    screenID
+		label string
+	}
+	tabs := []tab{
+		{screenVolume, "1:Volume"},
+		{screenPlaylist, "2:Playlist"},
+		{screenNavigator, "3:Navigator"},
+		{screenHelp, "?:Help"},
+	}
+	parts := make([]string, len(tabs))
+	for i, t := range tabs {
+		if t.id == m.activeScreen {
+			parts[i] = styleTabActive.Render(t.label)
+		} else {
+			parts[i] = styleTabInactive.Render(t.label)
+		}
+	}
+	return strings.Join(parts, "  ")
 }

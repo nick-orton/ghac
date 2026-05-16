@@ -125,8 +125,8 @@ func TestProgressBar(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bar := progressBar(tt.elapsed, tt.total, tt.width)
-			// Strip ANSI codes for rune counting by counting ━ characters.
-			filled := strings.Count(bar, "━")
+			// Strip ANSI codes for rune counting by counting █ characters.
+			filled := strings.Count(bar, "█")
 			if filled < tt.wantMin || filled > tt.wantMax {
 				t.Errorf("filled = %d, want between %d and %d; bar = %q",
 					filled, tt.wantMin, tt.wantMax, bar)
