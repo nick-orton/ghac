@@ -19,6 +19,7 @@ elsewhere — reference the style variables directly.
 | Secondary text    | `245`      | Time display, de-emphasized info       |
 | Volume bar unmuted | `2`       | Player Volume bar fill when unmuted (green) |
 | Volume bar muted   | `1`       | Player Volume bar fill when muted (red)     |
+| Current song       | `6`       | Playlist Control currently-playing row (same accent as progress fill) |
 
 For elements that do not need a specific color, use lipgloss modifiers
 (`Bold`, `Faint`, `Underline`, `Italic`) rather than introducing new
