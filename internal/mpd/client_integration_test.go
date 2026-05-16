@@ -111,3 +111,85 @@ func TestIntegrationPlayPause(t *testing.T) {
 		_ = c.Pause()
 	}
 }
+
+func TestIntegrationPlaylistInfo(t *testing.T) {
+	c, err := Connect(mpdTestAddr())
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer c.Close()
+
+	entries, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo: %v", err)
+	}
+	// Verify that entries have sequential Pos values when non-empty.
+	for i, e := range entries {
+		if e.Pos != i {
+			t.Errorf("entries[%d].Pos = %d, want %d", i, e.Pos, i)
+		}
+	}
+}
+
+func TestIntegrationPlayAt(t *testing.T) {
+	c, err := Connect(mpdTestAddr())
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer c.Close()
+
+	entries, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Skip("playlist is empty; cannot test PlayAt")
+	}
+
+	if err := c.PlayAt(0); err != nil {
+		t.Errorf("PlayAt(0): %v", err)
+	}
+}
+
+func TestIntegrationDeleteAndClear(t *testing.T) {
+	c, err := Connect(mpdTestAddr())
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer c.Close()
+
+	// Save the current playlist so we can skip non-destructively if empty.
+	before, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo before: %v", err)
+	}
+	if len(before) == 0 {
+		t.Skip("playlist is empty; cannot test Delete without modifying library")
+	}
+
+	// Delete the last song (least disruptive to playback).
+	lastPos := len(before) - 1
+	if err := c.Delete(lastPos); err != nil {
+		t.Fatalf("Delete(%d): %v", lastPos, err)
+	}
+
+	after, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo after Delete: %v", err)
+	}
+	if len(after) != len(before)-1 {
+		t.Errorf("playlist len = %d, want %d after Delete", len(after), len(before)-1)
+	}
+
+	// Clear and verify empty.
+	if err := c.Clear(); err != nil {
+		t.Fatalf("Clear: %v", err)
+	}
+	empty, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo after Clear: %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("playlist len = %d, want 0 after Clear", len(empty))
+	}
+}

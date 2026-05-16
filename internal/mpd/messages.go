@@ -14,6 +14,12 @@ type Song struct {
 	File   string // fallback display when metadata is absent
 }
 
+// PlaylistEntry is one song in the MPD playback queue.
+type PlaylistEntry struct {
+	Song
+	Pos int // 0-indexed position in the playlist
+}
+
 // MsgPlayerState is emitted by the idle listener when the MPD player
 // state changes. It carries the complete current player state.
 type MsgPlayerState struct {
@@ -21,6 +27,13 @@ type MsgPlayerState struct {
 	Song          Song
 	Elapsed       time.Duration
 	TotalDuration time.Duration
+	SongPos       int // 0-indexed position of current song; -1 if none playing
+}
+
+// MsgPlaylistChanged is emitted when the MPD playlist is modified.
+// It carries the full updated playlist contents.
+type MsgPlaylistChanged struct {
+	Entries []PlaylistEntry
 }
 
 // MsgTick is sent every second to advance the progress bar.

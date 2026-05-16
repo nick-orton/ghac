@@ -28,7 +28,7 @@ func Connect(addr string) (*Client, error) {
 		return nil, fmt.Errorf("mpd command connection: %w", err)
 	}
 
-	idle, err := gompd.NewWatcher("tcp", addr, "", "player")
+	idle, err := gompd.NewWatcher("tcp", addr, "", "player", "playlist")
 	if err != nil {
 		_ = cmd.Close()
 		return nil, fmt.Errorf("mpd idle connection: %w", err)
@@ -74,9 +74,42 @@ func (c *Client) Pause() error {
 	return c.cmd.Pause(true)
 }
 
-// ListenIdle returns a tea.Cmd that blocks until the next MPD player event,
-// queries the full player state, and returns a MsgPlayerState (or MsgError on
-// failure). Call the returned Cmd again from Update to keep listening.
+// PlaylistInfo returns all songs currently in the MPD playback queue.
+func (c *Client) PlaylistInfo() ([]PlaylistEntry, error) {
+	attrs, err := c.cmd.PlaylistInfo(-1, -1)
+	if err != nil {
+		return nil, fmt.Errorf("mpd PlaylistInfo: %w", err)
+	}
+	entries := make([]PlaylistEntry, len(attrs))
+	for i, a := range attrs {
+		pos, _ := strconv.Atoi(a["Pos"])
+		entries[i] = PlaylistEntry{
+			Song: songFromAttrs(a),
+			Pos:  pos,
+		}
+	}
+	return entries, nil
+}
+
+// PlayAt starts playing the song at the given 0-indexed playlist position.
+func (c *Client) PlayAt(pos int) error {
+	return c.cmd.Play(pos)
+}
+
+// Delete removes the song at the given 0-indexed playlist position.
+func (c *Client) Delete(pos int) error {
+	return c.cmd.Delete(pos, -1)
+}
+
+// Clear removes all songs from the playlist and stops playback.
+func (c *Client) Clear() error {
+	return c.cmd.Clear()
+}
+
+// ListenIdle returns a tea.Cmd that blocks until the next MPD player or
+// playlist event, queries the relevant state, and returns the appropriate
+// message (MsgPlayerState or MsgPlaylistChanged). Call the returned Cmd
+// again from Update to keep listening.
 func (c *Client) ListenIdle() tea.Cmd {
 	return func() tea.Msg {
 		select {
@@ -84,11 +117,20 @@ func (c *Client) ListenIdle() tea.Cmd {
 			if !ok || subsystem == "" {
 				return MsgError{Err: fmt.Errorf("mpd idle channel closed")}
 			}
-			state, err := c.queryPlayerState()
-			if err != nil {
-				return MsgError{Err: err}
+			switch subsystem {
+			case "playlist":
+				entries, err := c.PlaylistInfo()
+				if err != nil {
+					return MsgError{Err: err}
+				}
+				return MsgPlaylistChanged{Entries: entries}
+			default: // "player" and other subsystems map to player state
+				state, err := c.queryPlayerState()
+				if err != nil {
+					return MsgError{Err: err}
+				}
+				return state
 			}
-			return state
 		case err := <-c.idle.Error:
 			if err != nil {
 				return MsgError{Err: fmt.Errorf("mpd idle error: %w", err)}
@@ -111,11 +153,21 @@ func (c *Client) queryPlayerState() (MsgPlayerState, error) {
 		return MsgPlayerState{}, err
 	}
 
+	// status["song"] is absent when the playlist is empty or MPD is stopped
+	// with no current position; use -1 as the sentinel for "none playing".
+	songPos := -1
+	if s := status["song"]; s != "" {
+		if p, err := strconv.Atoi(s); err == nil {
+			songPos = p
+		}
+	}
+
 	return MsgPlayerState{
 		Status:        status["state"],
 		Song:          song,
 		Elapsed:       parseDuration(status["elapsed"]),
 		TotalDuration: parseDuration(status["duration"]),
+		SongPos:       songPos,
 	}, nil
 }
 

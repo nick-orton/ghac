@@ -17,4 +17,5 @@ var (
 	styleRowActive            = lipgloss.NewStyle().Bold(true)
 	styleVolumeBarFillUnmuted = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	styleVolumeBarFillMuted   = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	stylePlaylistCurrent      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 )

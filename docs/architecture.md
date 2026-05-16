@@ -137,9 +137,10 @@ No shared mutable state exists outside the model.
 **From MPD:**
 
 - `MsgPlayerState` — play/pause/stop status, current song,
-  elapsed time.
-- `MsgPlaylistChanged` — the playlist was modified; carry new
-  playlist contents.
+  elapsed time, and current song's playlist position (`SongPos`;
+  -1 when nothing is playing).
+- `MsgPlaylistChanged` — the playlist was modified; carries the
+  full updated `[]PlaylistEntry`.
 - `MsgTick` — periodic tick for progress bar updates (1s
   interval).
 
@@ -253,7 +254,8 @@ in the package that owns them.
 **Root model** (`internal/ui/Model`) owns:
 
 - Player state fields (`playerStatus`, `currentSong`,
-  `elapsed`, `totalDuration`) — populated from MPD messages.
+  `elapsed`, `totalDuration`, `currentSongPos`) — populated
+  from MPD messages.
 - Sub-models for each screen (`volume`, `playlist`,
   `navigator`, `help`).
 - Pointers to the MPD and SnapCast clients.
@@ -266,6 +268,11 @@ type Song struct {
     Artist string
     Album  string
     File   string // fallback display
+}
+
+type PlaylistEntry struct {
+    Song
+    Pos int // 0-indexed position in the playlist
 }
 ```
 
@@ -281,9 +288,10 @@ type SnapClient struct {
 ```
 
 The volume screen sub-model owns `[]SnapClient` and updates it
-in place when `MsgClientsUpdated` arrives. Playlist and
-navigator state types (`PlaylistEntry`, `DirEntry`) will be
-added in Phases 4 and 5 respectively.
+when `MsgClientsUpdated` arrives. The playlist screen sub-model
+owns `[]PlaylistEntry` and updates it when `MsgPlaylistChanged`
+arrives. Navigator state types (`DirEntry`) will be added in
+Phase 5.
 
 ## 9. Configuration
 
@@ -317,10 +325,11 @@ The application uses four goroutines beyond the main Bubble Tea
 event loop:
 
 1. **MPD idle listener** (tea-managed) — started by
-   `ListenIdle()` returning a `tea.Cmd`. Blocks on the gompd
-   watcher channel; on each player event it queries state and
-   returns `MsgPlayerState`. The root model re-calls it after
-   every message to keep it running.
+   `ListenIdle()` returning a `tea.Cmd`. Watches both the
+   `player` and `playlist` subsystems; returns `MsgPlayerState`
+   on player events and `MsgPlaylistChanged` on playlist events.
+   The root model re-calls it after every message to keep it
+   running.
 
 2. **SnapCast reader loop** (persistent) — started by
    `snapcast.Connect()`. Reads the TCP stream continuously,
