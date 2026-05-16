@@ -24,6 +24,8 @@ docs/
   ├── requirements.md   (initial requirements, since superceded by github 
   |                      issues for new features)
   ├── design.md         (Describes how the system should behave)
-  └── plan.md           (Describes the implementation plan)
+  ├── plan.md           (Describes the implementation plan)
+  └── ux.md             (UX standards: colors, layout, typography,
+                        component conventions)
 README.md               (user-facing documentation)
 ```
