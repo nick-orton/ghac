@@ -118,10 +118,7 @@ func (s volumeScreen) toggleMute(i int) volumeScreen {
 }
 
 func (s volumeScreen) View() string {
-	title := styleTitle.Render("Player Volume")
 	var b strings.Builder
-	b.WriteString(title)
-	b.WriteString("\n\n")
 
 	if len(s.clients) == 0 {
 		b.WriteString(stylePlaceholder.Render("No clients connected"))

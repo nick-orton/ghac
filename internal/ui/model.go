@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"ghac/internal/mpd"
 	"ghac/internal/snapcast"
@@ -200,19 +201,70 @@ func (m Model) View() string {
 	}
 	np := NowPlayingView(ps, m.width)
 
-	var screen string
+	var title, content string
 	switch m.activeScreen {
 	case screenVolume:
-		screen = m.volume.View()
+		title, content = "Player Volume", m.volume.View()
 	case screenPlaylist:
-		screen = m.playlist.View()
+		title, content = "Playlist Control", m.playlist.View()
 	case screenNavigator:
-		screen = m.navigator.View()
+		title, content = "Song Navigator", m.navigator.View()
 	case screenHelp:
-		screen = m.help.View()
+		title, content = "Help", m.help.View()
 	}
 
-	return np + "\n" + m.tabStripView() + "\n" + screen
+	return np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
+}
+
+// screenBorder wraps content in a single-line box with the screen title
+// embedded in the top edge:
+//
+//	┌─ Title ──────────────────────────────────────┐
+//	│ content line                                 │
+//	└──────────────────────────────────────────────┘
+//
+// width is the full terminal width; a minimum of 80 is enforced.
+func screenBorder(title, content string, width int) string {
+	if width < 4 {
+		width = 80
+	}
+
+	// Top edge: ┌─ Title ─────...─┐
+	styledTitle := styleTitle.Render(title)
+	titleSeg := "─ " + styledTitle + " "
+	fillLen := width - 2 - lipgloss.Width(titleSeg)
+	if fillLen < 1 {
+		fillLen = 1
+	}
+	top := "┌" + titleSeg + strings.Repeat("─", fillLen) + "┐"
+
+	// Bottom edge: └──────...──┘
+	bottom := "└" + strings.Repeat("─", width-2) + "┘"
+
+	// Inner content area: width minus two border chars and one space pad each side.
+	innerWidth := width - 4
+
+	lines := strings.Split(content, "\n")
+	// Drop trailing blank line that screens often emit.
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+
+	var b strings.Builder
+	b.WriteString(top)
+	b.WriteByte('\n')
+	for _, line := range lines {
+		pad := innerWidth - lipgloss.Width(line)
+		if pad < 0 {
+			pad = 0
+		}
+		b.WriteString("│ ")
+		b.WriteString(line)
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteString(" │\n")
+	}
+	b.WriteString(bottom)
+	return b.String()
 }
 
 // tabStripView renders the tab bar showing all screens with the active one
