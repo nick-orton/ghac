@@ -36,10 +36,11 @@ type Model struct {
 	snapClient *snapcast.Client
 
 	// Player state populated from MsgPlayerState and advanced by MsgTick.
-	playerStatus  string
-	currentSong   mpd.Song
-	elapsed       time.Duration
-	totalDuration time.Duration
+	playerStatus   string
+	currentSong    mpd.Song
+	elapsed        time.Duration
+	totalDuration  time.Duration
+	currentSongPos int // 0-indexed playlist position; -1 if none playing
 
 	// errMsg is set on fatal errors; View() shows it and Update() quits.
 	errMsg string
@@ -57,24 +58,26 @@ type NewParams struct {
 	MPDState    mpd.MsgPlayerState
 	Snapcast    *snapcast.Client
 	SnapClients []snapcast.SnapClient
+	Playlist    []mpd.PlaylistEntry
 }
 
 // New creates a new root model with the Player Volume screen active.
 // Client pointers may be nil during tests; commands will be no-ops in that case.
 func New(p NewParams) Model {
 	return Model{
-		activeScreen:  screenVolume,
-		prevScreen:    screenVolume,
-		mpdClient:     p.MPD,
-		snapClient:    p.Snapcast,
-		playerStatus:  p.MPDState.Status,
-		currentSong:   p.MPDState.Song,
-		elapsed:       p.MPDState.Elapsed,
-		totalDuration: p.MPDState.TotalDuration,
-		volume:        newVolumeScreen(p.Snapcast, p.SnapClients),
-		playlist:      newPlaylistScreen(),
-		navigator:     newNavigatorScreen(),
-		help:          newHelpScreen(),
+		activeScreen:   screenVolume,
+		prevScreen:     screenVolume,
+		mpdClient:      p.MPD,
+		snapClient:     p.Snapcast,
+		playerStatus:   p.MPDState.Status,
+		currentSong:    p.MPDState.Song,
+		elapsed:        p.MPDState.Elapsed,
+		totalDuration:  p.MPDState.TotalDuration,
+		currentSongPos: p.MPDState.SongPos,
+		volume:         newVolumeScreen(p.Snapcast, p.SnapClients),
+		playlist:       newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
+		navigator:      newNavigatorScreen(),
+		help:           newHelpScreen(),
 	}
 }
 
@@ -104,6 +107,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentSong = msg.Song
 		m.elapsed = msg.Elapsed
 		m.totalDuration = msg.TotalDuration
+		m.currentSongPos = msg.SongPos
+		m.playlist = m.playlist.withCurrentPos(msg.SongPos)
+		// Re-subscribe to the next idle event.
+		if m.mpdClient != nil {
+			return m, m.mpdClient.ListenIdle()
+		}
+		return m, nil
+
+	case mpd.MsgPlaylistChanged:
+		m.playlist = m.playlist.withEntries(msg.Entries, m.currentSongPos)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
