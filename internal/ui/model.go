@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"ghac/internal/mpd"
+	"ghac/internal/snapcast"
 )
 
 // screenID identifies which screen is currently active.
@@ -30,6 +31,9 @@ type Model struct {
 	// mpdClient is a pointer so the TCP connections are never copied.
 	mpdClient *mpd.Client
 
+	// snapClient is a pointer so the TCP connection is never copied.
+	snapClient *snapcast.Client
+
 	// Player state populated from MsgPlayerState and advanced by MsgTick.
 	playerStatus  string
 	currentSong   mpd.Song
@@ -45,34 +49,45 @@ type Model struct {
 	help      helpScreen
 }
 
+// NewParams holds all dependencies and initial state for New(). Using a struct
+// avoids a long positional parameter list and makes call sites self-documenting.
+type NewParams struct {
+	MPD         *mpd.Client
+	MPDState    mpd.MsgPlayerState
+	Snapcast    *snapcast.Client
+	SnapClients []snapcast.SnapClient
+}
+
 // New creates a new root model with the Player Volume screen active.
-// mpdClient may be nil during tests; play/pause will be no-ops in that case.
-// initialState is the player state fetched before the TUI starts.
-func New(mpdClient *mpd.Client, initialState mpd.MsgPlayerState) Model {
+// Client pointers may be nil during tests; commands will be no-ops in that case.
+func New(p NewParams) Model {
 	return Model{
 		activeScreen:  screenVolume,
 		prevScreen:    screenVolume,
-		mpdClient:     mpdClient,
-		playerStatus:  initialState.Status,
-		currentSong:   initialState.Song,
-		elapsed:       initialState.Elapsed,
-		totalDuration: initialState.TotalDuration,
-		volume:        newVolumeScreen(),
+		mpdClient:     p.MPD,
+		snapClient:    p.Snapcast,
+		playerStatus:  p.MPDState.Status,
+		currentSong:   p.MPDState.Song,
+		elapsed:       p.MPDState.Elapsed,
+		totalDuration: p.MPDState.TotalDuration,
+		volume:        newVolumeScreen(p.Snapcast, p.SnapClients),
 		playlist:      newPlaylistScreen(),
 		navigator:     newNavigatorScreen(),
 		help:          newHelpScreen(),
 	}
 }
 
-// Init starts the idle listener and the 1-second progress ticker.
+// Init starts the idle listener, the SnapCast notification listener, and the
+// 1-second progress ticker.
 func (m Model) Init() tea.Cmd {
-	if m.mpdClient == nil {
-		return mpd.TickCmd()
+	cmds := []tea.Cmd{mpd.TickCmd()}
+	if m.mpdClient != nil {
+		cmds = append(cmds, m.mpdClient.ListenIdle())
 	}
-	return tea.Batch(
-		m.mpdClient.ListenIdle(),
-		mpd.TickCmd(),
-	)
+	if m.snapClient != nil {
+		cmds = append(cmds, m.snapClient.ListenNotifications())
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update handles messages and returns the updated model.
@@ -101,6 +116,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, mpd.TickCmd()
 
 	case mpd.MsgError:
+		m.errMsg = msg.Err.Error()
+		return m, tea.Quit
+
+	case snapcast.MsgClientsUpdated:
+		m.volume = m.volume.withClients(msg.Clients)
+		if m.snapClient != nil {
+			return m, m.snapClient.ListenNotifications()
+		}
+		return m, nil
+
+	case snapcast.MsgError:
 		m.errMsg = msg.Err.Error()
 		return m, tea.Quit
 

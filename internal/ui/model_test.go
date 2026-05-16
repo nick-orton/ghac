@@ -10,9 +10,9 @@ import (
 	"ghac/internal/mpd"
 )
 
-// newTestModel returns a root model with no MPD client (safe for unit tests).
+// newTestModel returns a root model with no backend clients (safe for unit tests).
 func newTestModel() Model {
-	return New(nil, mpd.MsgPlayerState{})
+	return New(NewParams{})
 }
 
 func TestScreenSwitching(t *testing.T) {

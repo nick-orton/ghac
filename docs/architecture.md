@@ -47,22 +47,24 @@ injected into this loop as messages via Go channels.
 ghac/
 ├── cmd/
 │   └── ghac/
-│       └── main.go            # Entry point: config, connect, run
+│       └── main.go                       # Entry point: config, connect, run
 ├── internal/
 │   ├── config/
-│   │   └── config.go          # TOML parsing, validation
+│   │   └── config.go                     # TOML parsing, validation
 │   ├── mpd/
-│   │   ├── client.go          # MPD connection, commands
-│   │   └── messages.go        # Bubble Tea messages from MPD
+│   │   ├── client.go                     # MPD connection, commands
+│   │   └── messages.go                   # Bubble Tea messages from MPD
 │   ├── snapcast/
-│   │   ├── client.go          # JSON-RPC connection, commands
-│   │   └── messages.go        # Bubble Tea messages from SnapCast
+│   │   ├── client.go                     # JSON-RPC TCP client, commands
+│   │   ├── messages.go                   # Bubble Tea messages from SnapCast
+│   │   └── client_integration_test.go    # Integration tests (build tag)
 │   └── ui/
 │       ├── model.go           # Root model, screen routing
 │       ├── nowplaying.go      # Now-playing bar component
-│       ├── volume.go          # Player Volume screen
-│       ├── playlist.go        # Playlist Control screen
-│       ├── navigator.go       # Song Navigator screen
+│       ├── styles.go          # Shared lipgloss styles
+│       ├── volume.go          # Player Volume screen (SnapCast clients)
+│       ├── playlist.go        # Playlist Control screen (placeholder)
+│       ├── navigator.go       # Song Navigator screen (placeholder)
 │       └── help.go            # Help screen
 ├── docs/
 │   ├── requirements.md
