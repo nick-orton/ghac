@@ -55,12 +55,34 @@ displays:
 The now-playing bar updates in real time as the song
 progresses.
 
-### 3.2 Screen Title
+### 3.2 Tab Strip
 
-Below the now-playing bar, each screen displays its title so
-the user always knows which screen is active.
+Below the now-playing bar, a persistent tab strip lists every
+screen at all times:
 
-### 3.3 Global Keybindings
+```
+1:Volume  2:Playlist  3:Navigator  ?:Help
+```
+
+The active screen's tab is highlighted (bold + underline);
+inactive tabs are dimmed. This gives the user a permanent
+reminder of both the current location and how to navigate.
+
+### 3.3 Screen Title and Border
+
+Each screen is wrapped in a single-line border with the screen
+name embedded in the top edge:
+
+```
+┌─ Player Volume ──────────────────────────────────────────┐
+│ screen content                                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+The title is rendered bold. This is produced by `screenBorder()`
+in `model.go`; screen `View()` methods return content only.
+
+### 3.4 Global Keybindings
 
 These keybindings are active on every screen:
 
@@ -88,12 +110,11 @@ Each SnapCast client occupies one row:
 - **Volume bar** — a horizontal bar graph to the right of the
   name, representing the current volume as a percentage
   (0–100).
-- **Mute indicator** — when a client is muted, the row
-  visually indicates this state (e.g., dimmed colors or a
-  mute symbol).
+- **Mute indicator** — when a client is muted, the volume bar
+  is rendered in red (unmuted clients use green) and a `[M]`
+  symbol appears to the right of the percentage.
 
-The row under the cursor is highlighted with a distinct color
-to indicate focus.
+The row under the cursor is highlighted bold to indicate focus.
 
 **Player Volume keybindings:**
 
@@ -237,22 +258,17 @@ the application.
 ## 6. Interaction Summary
 
 ```text
-┌─────────────────────────────────────────────┐
-│  Now Playing: Artist - Title                │
-│  [████████████░░░░░░░░░░░░]  2:34 / 5:01    │
-├─────────────────────────────────────────────┤
-│  Screen Title                               │
+▶ Artist – Title              ████████████░░░░░░░░  2:34 / 5:01
+1:Volume  2:Playlist  3:Navigator  ?:Help
+┌─ Player Volume ─────────────────────────────┐
 │                                             │
 │  (screen-specific content)                  │
 │                                             │
-│                                             │
-│                                             │
-│                                             │
 └─────────────────────────────────────────────┘
-
-Navigation: [1] Volume  [2] Playlist  [3] Navigator
-            [p] Play/Pause  [?] Help  [q] Quit
 ```
+
+Global keys active on every screen: `p` play/pause, `q` quit,
+`Ctrl-C` quit, `1`/`2`/`3` switch screens, `?` help.
 
 ## 7. Edge Cases
 

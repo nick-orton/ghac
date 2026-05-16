@@ -14,7 +14,5 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 }
 
 func (s playlistScreen) View() string {
-	title := styleTitle.Render("Playlist Control")
-	msg := stylePlaceholder.Render("not yet connected")
-	return title + "\n\n" + msg
+	return stylePlaceholder.Render("not yet connected")
 }

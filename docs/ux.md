@@ -17,6 +17,8 @@ elsewhere — reference the style variables directly.
 | Accent / progress | `6`        | Progress bar filled portion (cyan)     |
 | Progress empty    | `240`      | Progress bar unfilled portion          |
 | Secondary text    | `245`      | Time display, de-emphasized info       |
+| Volume bar unmuted | `2`       | Player Volume bar fill when unmuted (green) |
+| Volume bar muted   | `1`       | Player Volume bar fill when muted (red)     |
 
 For elements that do not need a specific color, use lipgloss modifiers
 (`Bold`, `Faint`, `Underline`, `Italic`) rather than introducing new
@@ -28,16 +30,15 @@ update here.
 The screen is composed top-to-bottom in `Model.View()`:
 
 ```text
-┌────────────────────────────────────────────────────────┐
-│ Now-playing bar  (always visible, full terminal width) │
-├────────────────────────────────────────────────────────┤
-│ Tab strip        (always visible)                      │
-├────────────────────────────────────────────────────────┤
+ Now-playing bar  (always visible, full terminal width)
+ Tab strip        (always visible)
+┌─ Screen Name ──────────────────────────────────────────┐
 │ Active screen content                                  │
 └────────────────────────────────────────────────────────┘
 ```
 
-Each zone is separated by a single `\n`. Do not add extra blank lines
+The now-playing bar and tab strip are separated from each other and
+from the screen border by a single `\n`. Do not add extra blank lines
 between zones — vertical space is scarce in a TUI.
 
 ## 3. Now-Playing Bar
@@ -93,12 +94,17 @@ When adding a new named screen, add a corresponding tab entry in
 
 ## 5. Screen Titles
 
-Each screen renders its own title as the first line of `View()`,
-using `styleTitle` (bold). Follow the title with one blank line
-(`\n\n`) before the first content element. No additional decoration
-is required at this time, but a separator rule may be added in the
-future — keep title rendering in the screen's own `View()` so it
-can be updated in one place per screen.
+The screen title is rendered by `screenBorder()` in `model.go`,
+embedded in the top edge of the border:
+
+```text
+┌─ Player Volume ────────────────────────────────────────┐
+```
+
+The title is styled with `styleTitle` (bold). Screen `View()` methods
+must **not** render their own title — they return content only,
+starting directly with the first content element (no leading blank
+line). `screenBorder()` is the single place to update title styling.
 
 ## 6. Help Screen
 
@@ -127,6 +133,8 @@ per-screen in tab order).
 | Progress filled   | `█` (U+2588 FULL BLOCK)                        |
 | Progress unfilled | `░` (U+2591 LIGHT SHADE)                       |
 | Horizontal rule   | `─` (U+2500 BOX DRAWINGS LIGHT HORIZONTAL)     |
+| Border corners    | `┌` `┐` `└` `┘` (U+250C/10/14/18)             |
+| Border sides      | `│` (U+2502 BOX DRAWINGS LIGHT VERTICAL)       |
 
 Do not use ASCII hyphens (`-`) as separators in displayed text, or
 `...` (three periods) as an ellipsis. The above Unicode characters
@@ -146,9 +154,11 @@ requirement for running ghac.
 
 1. Create `internal/ui/<name>.go` with a struct implementing
    `Update(tea.Msg) (<ScreenType>, tea.Cmd)` and `View() string`.
+   `View()` returns content only — no title, no leading blank line.
 2. Add a `screenID` constant in `model.go`.
 3. Add a key binding in `model.go`'s `Update()`.
-4. Wire the screen into `delegateToActiveScreen()` and `View()`.
+4. Wire the screen into `delegateToActiveScreen()` and `View()`,
+   supplying the screen's title string to `screenBorder()`.
 5. Add a tab entry in `tabStripView()`.
 6. Document the screen's keybindings in `help.go`.
 7. Update `docs/architecture.md` to describe the new screen's

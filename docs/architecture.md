@@ -22,7 +22,6 @@ injected into this loop as messages via Go channels.
 | Concern        | Library / Tool                        |
 | -------------- | ------------------------------------- |
 | TUI framework  | charmbracelet/bubbletea               |
-| TUI components | charmbracelet/bubbles                 |
 | TUI styling    | charmbracelet/lipgloss                |
 | MPD client     | fhs/gompd/v2                          |
 | SnapCast       | Custom JSON-RPC client over TCP       |
@@ -48,22 +47,24 @@ injected into this loop as messages via Go channels.
 ghac/
 ├── cmd/
 │   └── ghac/
-│       └── main.go            # Entry point: config, connect, run
+│       └── main.go                       # Entry point: config, connect, run
 ├── internal/
 │   ├── config/
-│   │   └── config.go          # TOML parsing, validation
+│   │   └── config.go                     # TOML parsing, validation
 │   ├── mpd/
-│   │   ├── client.go          # MPD connection, commands
-│   │   └── messages.go        # Bubble Tea messages from MPD
+│   │   ├── client.go                     # MPD connection, commands
+│   │   └── messages.go                   # Bubble Tea messages from MPD
 │   ├── snapcast/
-│   │   ├── client.go          # JSON-RPC connection, commands
-│   │   └── messages.go        # Bubble Tea messages from SnapCast
+│   │   ├── client.go                     # JSON-RPC TCP client, commands
+│   │   ├── messages.go                   # Bubble Tea messages from SnapCast
+│   │   └── client_integration_test.go    # Integration tests (build tag)
 │   └── ui/
 │       ├── model.go           # Root model, screen routing
 │       ├── nowplaying.go      # Now-playing bar component
-│       ├── volume.go          # Player Volume screen
-│       ├── playlist.go        # Playlist Control screen
-│       ├── navigator.go       # Song Navigator screen
+│       ├── styles.go          # Shared lipgloss styles
+│       ├── volume.go          # Player Volume screen (SnapCast clients)
+│       ├── playlist.go        # Playlist Control screen (placeholder)
+│       ├── navigator.go       # Song Navigator screen (placeholder)
 │       └── help.go            # Help screen
 ├── docs/
 │   ├── requirements.md
@@ -184,9 +185,11 @@ from the root model or via messages.
 
 ### 6.3 Now-Playing Component
 
-A stateless view function that accepts current player state and
-terminal width, returning a rendered string. It is called by
-every screen's `View()` to compose the top bar.
+A stateless view function (`NowPlayingView` in `nowplaying.go`)
+that accepts current player state and terminal width, returning
+a rendered string. It is called once by `Model.View()` to
+compose the top bar; individual screen `View()` methods do not
+call it.
 
 ## 7. Backend Client Design
 
@@ -213,66 +216,74 @@ maintains two TCP connections: one for commands, one for idle.
 
 A custom client implementing SnapCast's JSON-RPC over TCP:
 
-1. **Command interface** — methods like `SetVolume(clientID,
-   vol)`, `SetMute(clientID, muted)` that send JSON-RPC
-   requests and await responses.
+1. **Command interface** — `GetServerStatus()`,
+   `SetVolume(clientID, vol, muted)`, `SetMute(clientID,
+   muted, currentVol)` that send JSON-RPC requests and block
+   until the response arrives (5-second timeout). Because the
+   SnapCast protocol encodes volume and muted state in a single
+   field, both values are always supplied together.
 
-2. **Notification listener** — reads the TCP stream for
-   server-initiated notifications (volume changes, client
-   connect/disconnect) and emits them as `tea.Msg`.
+2. **Reader goroutine** (`readLoop`) — a persistent goroutine
+   started by `Connect()` that reads the TCP stream, decodes
+   each JSON-RPC message, and dispatches it: responses go to
+   the waiting caller's channel (keyed by request ID);
+   server-initiated notifications go to an internal `notify`
+   channel.
+
+3. **Notification listener** (`ListenNotifications()`) —
+   returns a `tea.Cmd` that blocks on the `notify` channel.
+   On each notification it calls `GetServerStatus()` to fetch
+   the full updated client list and returns
+   `MsgClientsUpdated`. The root model re-calls it from
+   `Update` to keep listening — the same re-subscribe pattern
+   used by the MPD idle listener.
 
 The SnapCast protocol multiplexes commands and notifications on
 a single connection. The client uses a mutex-protected request
 map keyed by JSON-RPC ID to correlate responses with pending
-requests, while notifications (which lack an ID field matching
-a pending request) are forwarded to the message channel.
+requests, while notifications (no matching ID) go to the
+`notify` channel.
 
 ## 8. State Model
 
+State is distributed across the root model and per-screen
+sub-models rather than collected in a single struct. Types live
+in the package that owns them.
+
+**Root model** (`internal/ui/Model`) owns:
+
+- Player state fields (`playerStatus`, `currentSong`,
+  `elapsed`, `totalDuration`) — populated from MPD messages.
+- Sub-models for each screen (`volume`, `playlist`,
+  `navigator`, `help`).
+- Pointers to the MPD and SnapCast clients.
+
+**MPD types** (`internal/mpd/messages.go`):
+
 ```go
-type AppState struct {
-    // Player
-    PlayerStatus   string  // "play", "pause", "stop"
-    CurrentSong    Song
-    Elapsed        time.Duration
-    TotalDuration  time.Duration
-
-    // SnapCast
-    Clients []SnapClient
-
-    // Playlist
-    Playlist []PlaylistEntry
-
-    // Navigator
-    CurrentPath string
-    DirEntries  []DirEntry
-}
-
 type Song struct {
-    Title    string
-    Artist   string
-    Album    string
-    File     string // fallback display
+    Title  string
+    Artist string
+    Album  string
+    File   string // fallback display
 }
+```
 
+**SnapCast types** (`internal/snapcast/messages.go`):
+
+```go
 type SnapClient struct {
     ID     string
     Name   string
-    Volume int  // 0-100
+    Volume int  // 0–100
     Muted  bool
 }
-
-type PlaylistEntry struct {
-    Position int
-    Song     Song
-}
-
-type DirEntry struct {
-    Name  string
-    IsDir bool
-    Song  Song // populated only for files with metadata
-}
 ```
+
+The volume screen sub-model owns `[]SnapClient` and updates it
+in place when `MsgClientsUpdated` arrives. Playlist and
+navigator state types (`PlaylistEntry`, `DirEntry`) will be
+added in Phases 4 and 5 respectively.
 
 ## 9. Configuration
 
@@ -302,20 +313,34 @@ port = 6600
 
 ## 10. Concurrency Model
 
-The application uses exactly three goroutines beyond the main
-Bubble Tea loop:
+The application uses four goroutines beyond the main Bubble Tea
+event loop:
 
-1. **MPD idle watcher** — blocks on idle, queries state, sends
-   message, repeats.
-2. **SnapCast notification reader** — reads TCP stream, parses
-   JSON-RPC notifications, sends messages.
-3. **Progress ticker** — sends a tick message every second for
-   the now-playing progress bar.
+1. **MPD idle listener** (tea-managed) — started by
+   `ListenIdle()` returning a `tea.Cmd`. Blocks on the gompd
+   watcher channel; on each player event it queries state and
+   returns `MsgPlayerState`. The root model re-calls it after
+   every message to keep it running.
+
+2. **SnapCast reader loop** (persistent) — started by
+   `snapcast.Connect()`. Reads the TCP stream continuously,
+   dispatching JSON-RPC responses to per-request channels and
+   forwarding notifications to the internal `notify` channel.
+   Exits only when the connection closes.
+
+3. **SnapCast notification listener** (tea-managed) — started
+   by `ListenNotifications()` returning a `tea.Cmd`. Blocks on
+   the `notify` channel; on each notification it fetches the
+   full server status and returns `MsgClientsUpdated`. The root
+   model re-calls it after every message.
+
+4. **Progress ticker** (tea-managed) — `tea.Tick` fires every
+   second, producing `MsgTick` to advance the progress bar.
 
 All goroutines communicate exclusively through Bubble Tea's
-command/message system. There is no shared mutable state and no
-explicit locking in application code (the SnapCast client's
-internal request map is the sole exception, as noted in 7.2).
+command/message system. No shared mutable state exists outside
+the model (the SnapCast client's internal request map and write
+mutex are the sole exception, as noted in 7.2).
 
 ## 11. Error Handling Strategy
 

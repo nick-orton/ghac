@@ -20,11 +20,7 @@ func (s helpScreen) Update(msg tea.Msg) (helpScreen, tea.Cmd) {
 }
 
 func (s helpScreen) View() string {
-	title := styleTitle.Render("Help")
-
 	var b strings.Builder
-	b.WriteString(title)
-	b.WriteString("\n\n")
 
 	b.WriteString(styleHelpSection.Render("Global"))
 	b.WriteString("\n")

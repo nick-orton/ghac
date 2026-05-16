@@ -14,7 +14,5 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 }
 
 func (s navigatorScreen) View() string {
-	title := styleTitle.Render("Song Navigator")
-	msg := stylePlaceholder.Render("not yet connected")
-	return title + "\n\n" + msg
+	return stylePlaceholder.Render("not yet connected")
 }

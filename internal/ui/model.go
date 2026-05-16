@@ -5,8 +5,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"ghac/internal/mpd"
+	"ghac/internal/snapcast"
 )
 
 // screenID identifies which screen is currently active.
@@ -30,6 +32,9 @@ type Model struct {
 	// mpdClient is a pointer so the TCP connections are never copied.
 	mpdClient *mpd.Client
 
+	// snapClient is a pointer so the TCP connection is never copied.
+	snapClient *snapcast.Client
+
 	// Player state populated from MsgPlayerState and advanced by MsgTick.
 	playerStatus  string
 	currentSong   mpd.Song
@@ -45,34 +50,45 @@ type Model struct {
 	help      helpScreen
 }
 
+// NewParams holds all dependencies and initial state for New(). Using a struct
+// avoids a long positional parameter list and makes call sites self-documenting.
+type NewParams struct {
+	MPD         *mpd.Client
+	MPDState    mpd.MsgPlayerState
+	Snapcast    *snapcast.Client
+	SnapClients []snapcast.SnapClient
+}
+
 // New creates a new root model with the Player Volume screen active.
-// mpdClient may be nil during tests; play/pause will be no-ops in that case.
-// initialState is the player state fetched before the TUI starts.
-func New(mpdClient *mpd.Client, initialState mpd.MsgPlayerState) Model {
+// Client pointers may be nil during tests; commands will be no-ops in that case.
+func New(p NewParams) Model {
 	return Model{
 		activeScreen:  screenVolume,
 		prevScreen:    screenVolume,
-		mpdClient:     mpdClient,
-		playerStatus:  initialState.Status,
-		currentSong:   initialState.Song,
-		elapsed:       initialState.Elapsed,
-		totalDuration: initialState.TotalDuration,
-		volume:        newVolumeScreen(),
+		mpdClient:     p.MPD,
+		snapClient:    p.Snapcast,
+		playerStatus:  p.MPDState.Status,
+		currentSong:   p.MPDState.Song,
+		elapsed:       p.MPDState.Elapsed,
+		totalDuration: p.MPDState.TotalDuration,
+		volume:        newVolumeScreen(p.Snapcast, p.SnapClients),
 		playlist:      newPlaylistScreen(),
 		navigator:     newNavigatorScreen(),
 		help:          newHelpScreen(),
 	}
 }
 
-// Init starts the idle listener and the 1-second progress ticker.
+// Init starts the idle listener, the SnapCast notification listener, and the
+// 1-second progress ticker.
 func (m Model) Init() tea.Cmd {
-	if m.mpdClient == nil {
-		return mpd.TickCmd()
+	cmds := []tea.Cmd{mpd.TickCmd()}
+	if m.mpdClient != nil {
+		cmds = append(cmds, m.mpdClient.ListenIdle())
 	}
-	return tea.Batch(
-		m.mpdClient.ListenIdle(),
-		mpd.TickCmd(),
-	)
+	if m.snapClient != nil {
+		cmds = append(cmds, m.snapClient.ListenNotifications())
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update handles messages and returns the updated model.
@@ -101,6 +117,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, mpd.TickCmd()
 
 	case mpd.MsgError:
+		m.errMsg = msg.Err.Error()
+		return m, tea.Quit
+
+	case snapcast.MsgClientsUpdated:
+		m.volume = m.volume.withClients(msg.Clients)
+		if m.snapClient != nil {
+			return m, m.snapClient.ListenNotifications()
+		}
+		return m, nil
+
+	case snapcast.MsgError:
 		m.errMsg = msg.Err.Error()
 		return m, tea.Quit
 
@@ -174,19 +201,70 @@ func (m Model) View() string {
 	}
 	np := NowPlayingView(ps, m.width)
 
-	var screen string
+	var title, content string
 	switch m.activeScreen {
 	case screenVolume:
-		screen = m.volume.View()
+		title, content = "Player Volume", m.volume.View()
 	case screenPlaylist:
-		screen = m.playlist.View()
+		title, content = "Playlist Control", m.playlist.View()
 	case screenNavigator:
-		screen = m.navigator.View()
+		title, content = "Song Navigator", m.navigator.View()
 	case screenHelp:
-		screen = m.help.View()
+		title, content = "Help", m.help.View()
 	}
 
-	return np + "\n" + m.tabStripView() + "\n" + screen
+	return np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
+}
+
+// screenBorder wraps content in a single-line box with the screen title
+// embedded in the top edge:
+//
+//	┌─ Title ──────────────────────────────────────┐
+//	│ content line                                 │
+//	└──────────────────────────────────────────────┘
+//
+// width is the full terminal width; a minimum of 80 is enforced.
+func screenBorder(title, content string, width int) string {
+	if width < 4 {
+		width = 80
+	}
+
+	// Top edge: ┌─ Title ─────...─┐
+	styledTitle := styleTitle.Render(title)
+	titleSeg := "─ " + styledTitle + " "
+	fillLen := width - 2 - lipgloss.Width(titleSeg)
+	if fillLen < 1 {
+		fillLen = 1
+	}
+	top := "┌" + titleSeg + strings.Repeat("─", fillLen) + "┐"
+
+	// Bottom edge: └──────...──┘
+	bottom := "└" + strings.Repeat("─", width-2) + "┘"
+
+	// Inner content area: width minus two border chars and one space pad each side.
+	innerWidth := width - 4
+
+	lines := strings.Split(content, "\n")
+	// Drop trailing blank line that screens often emit.
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+
+	var b strings.Builder
+	b.WriteString(top)
+	b.WriteByte('\n')
+	for _, line := range lines {
+		pad := innerWidth - lipgloss.Width(line)
+		if pad < 0 {
+			pad = 0
+		}
+		b.WriteString("│ ")
+		b.WriteString(line)
+		b.WriteString(strings.Repeat(" ", pad))
+		b.WriteString(" │\n")
+	}
+	b.WriteString(bottom)
+	return b.String()
 }
 
 // tabStripView renders the tab bar showing all screens with the active one
