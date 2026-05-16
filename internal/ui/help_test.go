@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"ghac/internal/mpd"
 )
 
 func TestHelpViewContainsSections(t *testing.T) {
@@ -46,7 +48,7 @@ func TestHelpEscReturnsToOrigin(t *testing.T) {
 
 	for _, tt := range origins {
 		t.Run(tt.name, func(t *testing.T) {
-			m := New()
+			m := New(nil, mpd.MsgPlayerState{})
 
 			// Go to origin.
 			updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
