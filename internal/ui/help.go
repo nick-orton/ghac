@@ -1,16 +1,10 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-)
-
-var (
-	styleHelpSection = lipgloss.NewStyle().Bold(true).Underline(true)
-	styleHelpKey     = lipgloss.NewStyle().Bold(true)
-	styleHelpDesc    = lipgloss.NewStyle().Faint(true)
 )
 
 // helpScreen displays all keybindings organized by section.
@@ -73,7 +67,7 @@ func (s helpScreen) View() string {
 }
 
 func helpRow(key, desc string) string {
-	k := styleHelpKey.Render(key)
+	k := styleHelpKey.Render(fmt.Sprintf("%-12s", key))
 	d := styleHelpDesc.Render(desc)
 	return "  " + k + "  " + d + "\n"
 }
