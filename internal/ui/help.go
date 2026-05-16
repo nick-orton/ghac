@@ -1,0 +1,79 @@
+package ui
+
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	styleHelpSection = lipgloss.NewStyle().Bold(true).Underline(true)
+	styleHelpKey     = lipgloss.NewStyle().Bold(true)
+	styleHelpDesc    = lipgloss.NewStyle().Faint(true)
+)
+
+// helpScreen displays all keybindings organized by section.
+// Esc is handled by the root model to return to the previous screen.
+type helpScreen struct{}
+
+func newHelpScreen() helpScreen {
+	return helpScreen{}
+}
+
+func (s helpScreen) Update(msg tea.Msg) (helpScreen, tea.Cmd) {
+	return s, nil
+}
+
+func (s helpScreen) View() string {
+	title := styleTitle.Render("Help")
+
+	var b strings.Builder
+	b.WriteString(title)
+	b.WriteString("\n\n")
+
+	b.WriteString(styleHelpSection.Render("Global"))
+	b.WriteString("\n")
+	b.WriteString(helpRow("1", "Switch to Player Volume screen"))
+	b.WriteString(helpRow("2", "Switch to Playlist Control screen"))
+	b.WriteString(helpRow("3", "Switch to Song Navigator screen"))
+	b.WriteString(helpRow("?", "Open help screen"))
+	b.WriteString(helpRow("p", "Toggle play / pause"))
+	b.WriteString(helpRow("q / Ctrl-C", "Quit"))
+	b.WriteString(helpRow("Esc", "Return to previous screen (from help)"))
+	b.WriteString("\n")
+
+	b.WriteString(styleHelpSection.Render("Player Volume"))
+	b.WriteString("\n")
+	b.WriteString(helpRow("j / k", "Move cursor down / up"))
+	b.WriteString(helpRow("h / l", "Decrease / increase focused client volume by 5%"))
+	b.WriteString(helpRow("m", "Toggle mute on focused client"))
+	b.WriteString(helpRow("H / L", "Decrease / increase all clients volume by 5%"))
+	b.WriteString(helpRow("M", "Toggle mute on all clients"))
+	b.WriteString("\n")
+
+	b.WriteString(styleHelpSection.Render("Playlist Control"))
+	b.WriteString("\n")
+	b.WriteString(helpRow("j / k", "Move cursor down / up"))
+	b.WriteString(helpRow("space", "Toggle selection on song under cursor"))
+	b.WriteString(helpRow("x", "Remove selected song(s) (or cursor song if none selected)"))
+	b.WriteString(helpRow("X", "Clear the entire playlist"))
+	b.WriteString(helpRow("enter", "Start playing the song under cursor"))
+	b.WriteString("\n")
+
+	b.WriteString(styleHelpSection.Render("Song Navigator"))
+	b.WriteString("\n")
+	b.WriteString(helpRow("j / k", "Move cursor down / up"))
+	b.WriteString(helpRow("h", "Navigate to parent directory"))
+	b.WriteString(helpRow("l", "Enter directory under cursor"))
+	b.WriteString(helpRow("space", "Toggle selection on entry under cursor"))
+	b.WriteString(helpRow("enter", "Enqueue selected entries (or cursor entry if none selected)"))
+
+	return b.String()
+}
+
+func helpRow(key, desc string) string {
+	k := styleHelpKey.Render(key)
+	d := styleHelpDesc.Render(desc)
+	return "  " + k + "  " + d + "\n"
+}

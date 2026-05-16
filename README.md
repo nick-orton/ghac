@@ -1,0 +1,114 @@
+# ghac — Go Home Audio Controller
+
+A keyboard-driven terminal user interface for controlling a multi-room
+home audio system. ghac integrates two backend services:
+
+- **Music Player Daemon (MPD)** — library browsing, playlist management,
+  and playback control.
+- **SnapCast** — synchronized multi-room audio streaming and per-client
+  volume control.
+
+## Requirements
+
+- Go 1.25 or later
+- A running MPD instance (Phase 2+)
+- A running SnapCast server instance (Phase 3+)
+
+## Configuration
+
+ghac reads its configuration from `$HOME/.config/.ghacrc` (TOML format).
+The file is required; ghac will print a descriptive error and exit if it
+is missing or invalid.
+
+A template is included in the repository at `ghacrc.example`. Copy it to
+the config location and edit the values to match your setup:
+
+```sh
+cp ghacrc.example ~/.config/.ghacrc
+```
+
+| Field             | Description                    |
+| ----------------- | ------------------------------ |
+| `snapserver.ip`   | SnapCast server IP address     |
+| `snapserver.port` | SnapCast server port           |
+| `mpd.ip`          | MPD server IP address          |
+| `mpd.port`        | MPD server port                |
+
+## Building
+
+```sh
+go build -o ghac ./cmd/ghac
+```
+
+## Running
+
+```sh
+./ghac
+```
+
+ghac reads `~/.config/.ghacrc` on startup. If the config file is missing
+or invalid it prints an error to stderr and exits with a non-zero status.
+
+## Usage
+
+### Global Keys
+
+| Key      | Action                            |
+| -------- | --------------------------------- |
+| `1`      | Switch to Player Volume screen    |
+| `2`      | Switch to Playlist Control screen |
+| `3`      | Switch to Song Navigator screen   |
+| `?`      | Open the Help screen              |
+| `p`      | Toggle play / pause               |
+| `q`      | Quit                              |
+| `Ctrl-C` | Quit                              |
+| `Esc`    | Return to previous screen (Help) |
+
+### Screens
+
+**Player Volume (1)** — Adjust volume and mute state for each SnapCast
+client.
+
+| Key   | Action                                  |
+| ----- | --------------------------------------- |
+| `j/k` | Move cursor down / up                   |
+| `h/l` | Decrease / increase focused volume 5%   |
+| `m`   | Toggle mute on focused client           |
+| `H/L` | Decrease / increase all volumes by 5%   |
+| `M`   | Toggle mute on all clients              |
+
+**Playlist Control (2)** — View and manage the MPD playback queue.
+
+| Key     | Action                                     |
+| ------- | ------------------------------------------ |
+| `j/k`   | Move cursor down / up                      |
+| `space` | Toggle selection on song under cursor      |
+| `x`     | Remove selected song(s) or song at cursor  |
+| `X`     | Clear the entire playlist                  |
+| `enter` | Start playing the song under cursor        |
+
+**Song Navigator (3)** — Browse the MPD music library by directory.
+
+| Key     | Action                                      |
+| ------- | ------------------------------------------- |
+| `j/k`   | Move cursor down / up                       |
+| `h`     | Navigate to parent directory                |
+| `l`     | Enter directory under cursor                |
+| `space` | Toggle selection on entry under cursor      |
+| `enter` | Enqueue selected entries (or cursor entry)  |
+
+**Help (?)** — Quick-reference for all keybindings. Press `Esc` to
+return to the previous screen.
+
+## Running Tests
+
+```sh
+go test ./...
+```
+
+Integration tests (requiring live MPD/SnapCast instances) are gated
+behind the `integration` build tag and are not run by default:
+
+```sh
+go test -tags integration ./...
+```
