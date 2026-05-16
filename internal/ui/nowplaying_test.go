@@ -44,6 +44,21 @@ func TestNowPlayingViewPlayingShowsTitleAndArtist(t *testing.T) {
 	}
 }
 
+func TestNowPlayingViewShowsAlbum(t *testing.T) {
+	state := PlayerState{
+		Status:        "play",
+		Title:         "Echoes",
+		Artist:        "Pink Floyd",
+		Album:         "Meddle",
+		Elapsed:       2*time.Minute + 3*time.Second,
+		TotalDuration: 23*time.Minute + 31*time.Second,
+	}
+	view := NowPlayingView(state, 120)
+	if !strings.Contains(view, "Meddle") {
+		t.Errorf("expected album in view, got: %q", view)
+	}
+}
+
 func TestNowPlayingViewPausedShowsIcon(t *testing.T) {
 	state := PlayerState{
 		Status:        "pause",

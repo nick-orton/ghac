@@ -18,9 +18,13 @@ type PlayerState struct {
 	TotalDuration time.Duration
 }
 
-// displayName returns the best available label for the current song: prefers
-// "Title – Artist", falls back to "Title", falls back to filename.
+// displayName returns the best available label for the current song.
+// Prefers "Title – Artist – Album", degrades gracefully when fields are absent,
+// and falls back to filename when no metadata is available.
 func (p PlayerState) displayName() string {
+	if p.Title != "" && p.Artist != "" && p.Album != "" {
+		return p.Title + " – " + p.Artist + " – " + p.Album
+	}
 	if p.Title != "" && p.Artist != "" {
 		return p.Title + " – " + p.Artist
 	}
