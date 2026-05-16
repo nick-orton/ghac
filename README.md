@@ -37,7 +37,7 @@ cp ghacrc.example ~/.config/.ghacrc
 ## Building
 
 ```sh
-go build -o ghac ./cmd/ghac
+make build
 ```
 
 ## Running
@@ -103,12 +103,12 @@ return to the previous screen.
 ## Running Tests
 
 ```sh
-go test ./...
+make test
 ```
 
 Integration tests (requiring live MPD/SnapCast instances) are gated
 behind the `integration` build tag and are not run by default:
 
 ```sh
-go test -tags integration ./...
+make test-integration
 ```
