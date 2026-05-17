@@ -1,4 +1,7 @@
-.PHONY: build test test-integration clean
+.PHONY: build test test-integration clean install
+
+PREFIX?=	/usr/local
+BINDIR?=	${PREFIX}/bin
 
 build:
 	go build -o ghac ./cmd/ghac
@@ -11,3 +14,6 @@ test-integration:
 
 clean:
 	rm -f ghac
+
+install: build
+	install -m 555 ghac ${DESTDIR}${BINDIR}/ghac
