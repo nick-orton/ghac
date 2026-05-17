@@ -61,7 +61,7 @@ Below the now-playing bar, a persistent tab strip lists every
 screen at all times:
 
 ```
-1:Volume  2:Playlist  3:Navigator  ?:Help
+1:Volume  2:Playlist  3:Library  ?:Help
 ```
 
 The active screen's tab is highlighted (bold + underline);
@@ -90,7 +90,7 @@ These keybindings are active on every screen:
 | -------- | ----------------------------------- |
 | `1`      | Switch to Player Volume screen      |
 | `2`      | Switch to Playlist Control screen   |
-| `3`      | Switch to Song Navigator screen     |
+| `3`      | Switch to Library Navigator screen     |
 | `?`      | Open the Help screen                |
 | `p`      | Toggle play / pause                 |
 | `q`      | Quit the application                |
@@ -106,10 +106,11 @@ connected to the server.
 Each SnapCast client occupies one row:
 
 - **Client name** — left-aligned, using the name reported by
-  the SnapCast server.
+  the SnapCast server (falls back to hostname if no configured
+  name). Truncated to 20 characters with an ellipsis if longer.
 - **Volume bar** — a horizontal bar graph to the right of the
   name, representing the current volume as a percentage
-  (0–100).
+  (0–100). Fixed width of 20 characters.
 - **Mute indicator** — when a client is muted, the volume bar
   is rendered in red (unmuted clients use green) and a `[M]`
   symbol appears to the right of the percentage.
@@ -142,17 +143,24 @@ event stream for this purpose.
 Views and manages the MPD playback queue.
 
 The playlist is shown as a vertical list, one song per line.
-Each line shows song metadata (title, artist) when available,
+Each line shows song metadata ("Title – Artist") when available,
 falling back to the filename. The currently-playing song is
-visually distinguished with a marker (e.g., a `>` prefix) and
-a distinct color or style (e.g., bold). The song under the
-cursor is highlighted.
+visually distinguished with a `>` prefix marker and bold cyan
+styling. The song under the cursor is highlighted bold.
 
 Songs can be individually toggled into a "selected" state with
-`space`. Selected songs are visually marked (e.g., with a
-different background or a selection indicator). The selection
-is independent of the cursor position — the cursor can move
-freely after selecting songs.
+`space`. Selected songs are marked with a `*` prefix character.
+The selection is independent of the cursor position — the cursor
+can move freely after selecting songs.
+
+**Prefix layout** (5 characters before the song text):
+
+```
+▶ >*  →  cursor + playing + selected
+  >   →  playing only
+   *  →  selected only
+      →  none
+```
 
 **Playlist Control keybindings:**
 
@@ -160,6 +168,8 @@ freely after selecting songs.
 | ------- | ----------------------------------------- |
 | `j`     | Move cursor down one song                 |
 | `k`     | Move cursor up one song                   |
+| `gg`    | Move cursor to the first song             |
+| `G`     | Move cursor to the last song              |
 | `space` | Toggle selection on the song under cursor  |
 | `x`     | Remove selected song(s) from the playlist |
 | `X`     | Clear the entire playlist                 |
@@ -171,12 +181,12 @@ freely after selecting songs.
   removes all selected songs.
 - If no songs are selected, `x` removes the song under the
   cursor.
-- After removal, the cursor moves to the next song in the
-  list. If the removed song was the last entry, the cursor
-  moves up to the new last entry.
+- After removal, the cursor stays at its current index; if
+  that index now exceeds the list end, it moves to the new
+  last entry.
 - `X` clears the entire playlist and stops playback.
 
-### 4.3 Song Navigator (Screen 3)
+### 4.3 Library Navigator (Screen 3)
 
 Browses the MPD music library using its directory structure
 and adds songs or directories to the playlist.
@@ -184,28 +194,70 @@ and adds songs or directories to the playlist.
 The navigator presents a directory listing styled to
 approximate a tab in the `nnn` file manager:
 
-- **Directories** are visually distinct from files (e.g.,
-  trailing `/`, different color, or bold).
+- **Directories** are rendered bold with a trailing `/`.
 - **Files** display the filename left-aligned and metadata
-  (artist, title, album) right-aligned when available.
-- The entry under the cursor is highlighted.
-- A breadcrumb or path indicator shows the current directory
-  location.
+  ("Title – Artist") right-aligned when the terminal is wide
+  enough. When there is insufficient space for right-aligned
+  metadata, only the filename is shown.
+- The entry under the cursor is highlighted bold.
+- A breadcrumb line at the top shows the current directory
+  path (e.g., `Path: Artists/Pink Floyd`) or `Path: / (root)`
+  when at the library root.
+- Files that are already in the playback queue are marked with
+  a `+` prefix character.
+
+**Prefix layout** (5 characters before the name):
+
+```
+▶ *+  →  cursor + selected + in-playlist
+  *   →  selected only
+   +  →  in-playlist only (file already queued)
+      →  none
+```
+
+**Viewport scrolling:** The navigator implements viewport
+scrolling. Only as many entries as fit on screen are rendered.
+The viewport offset is adjusted automatically as the cursor
+moves so that the cursor is always visible.
 
 Individual files and directories can be toggled into a
 "selected" state with `space`, similar to Playlist Control.
-Selected entries are visually marked.
+Selected entries are marked with a `*` prefix character.
 
-**Song Navigator keybindings:**
+**Library Navigator keybindings:**
 
-| Key     | Action                                     |
-| ------- | ------------------------------------------ |
-| `j`     | Move cursor down one entry                 |
-| `k`     | Move cursor up one entry                   |
-| `h`     | Navigate up one directory (back / parent)  |
-| `l`     | Enter the directory under cursor           |
-| `space` | Toggle selection on the entry under cursor |
-| `enter` | Enqueue selected entries to the playlist   |
+| Key      | Action                                               |
+| -------- | ---------------------------------------------------- |
+| `j`      | Move cursor down one entry                           |
+| `k`      | Move cursor up one entry                             |
+| `gg`     | Move cursor to the first entry                       |
+| `G`      | Move cursor to the last entry                        |
+| `Ctrl-D` | Move cursor down half a page                         |
+| `Ctrl-U` | Move cursor up half a page                           |
+| `h`      | Navigate up one directory (back / parent)            |
+| `l`      | Enter the directory under cursor                     |
+| `space`  | Toggle selection on the entry under cursor           |
+| `x`      | Remove selected file(s) from the playlist            |
+| `enter`  | Enqueue selected entries to the playlist             |
+
+**Navigation behavior:**
+
+- `h` navigates to the parent directory. The cursor is placed
+  on the subdirectory that was just exited so the user can see
+  where they came from. No-op at the music library root.
+- `l` enters a directory. No-op on files.
+
+**Remove behavior (`x`):**
+
+- If one or more entries are selected, `x` removes all
+  selected files that are currently in the playlist.
+- If no entries are selected, `x` removes the file under
+  the cursor if it is in the playlist.
+- Directories and files not in the playlist are silently
+  skipped — `x` is never an error.
+- When a song appears in the playlist multiple times, all
+  occurrences are removed.
+- After removal the selection is cleared.
 
 **Enqueue behavior:**
 
@@ -213,17 +265,15 @@ Selected entries are visually marked.
   enqueues all selected entries and clears the selection.
 - If no entries are selected, `enter` enqueues the single
   entry under the cursor.
-- Enqueuing a directory adds all songs within it recursively,
-  in filesystem sort order.
+- Enqueuing a directory adds all songs within it recursively
+  (handled by MPD).
 - Enqueued songs are appended to the end of the MPD playlist.
-- `l` on a file does nothing (only directories can be
-  entered).
 
 ### 4.4 Help Screen
 
 Provides a quick-reference for all keybindings across all
 screens. Lists every keybinding organized by section: Global,
-Player Volume, Playlist Control, and Song Navigator. Each
+Player Volume, Playlist Control, and Library Navigator. Each
 entry shows the key and a short description of its action.
 
 | Key   | Action                               |
@@ -240,7 +290,8 @@ returns to that screen on exit.
 ghac connects to MPD over TCP using the MPD protocol. It
 subscribes to the MPD idle subsystem to receive real-time
 notifications for player state changes (play, pause, stop,
-seek), playlist modifications, and database updates.
+seek) and playlist modifications. The idle watcher monitors
+both the `player` and `playlist` subsystems.
 
 ### 5.2 SnapCast
 
@@ -259,12 +310,12 @@ the application.
 
 ```text
 ▶ Artist – Title              ████████████░░░░░░░░  2:34 / 5:01
-1:Volume  2:Playlist  3:Navigator  ?:Help
-┌─ Player Volume ─────────────────────────────┐
-│                                             │
-│  (screen-specific content)                  │
-│                                             │
-└─────────────────────────────────────────────┘
+1:Volume  2:Playlist  3:Library  ?:Help
+┌─ Player Volume ─────────────────────────────────┐
+│                                                 │
+│  (screen-specific content)                      │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
 Global keys active on every screen: `p` play/pause, `q` quit,
@@ -272,13 +323,14 @@ Global keys active on every screen: `p` play/pause, `q` quit,
 
 ## 7. Edge Cases
 
-- **Empty playlist** — Playlist Control shows an empty state
-  message. The now-playing bar shows no song information and
-  an empty progress bar.
-- **No SnapCast clients** — Player Volume shows an empty
-  state message indicating no clients are connected.
-- **Empty directory** — Song Navigator shows an empty state
-  message. `h` still navigates to the parent directory.
+- **Empty playlist** — Playlist Control shows "Playlist is
+  empty" (italic/faint). The now-playing bar shows
+  "[ No song playing ]".
+- **No SnapCast clients** — Player Volume shows "No clients
+  connected" (italic/faint).
+- **Empty directory** — Library Navigator shows "Directory is
+  empty" (italic/faint). `h` still navigates to the parent
+  directory.
 - **Root of music library** — `h` does nothing when already
   at the top-level music directory.
 - **Volume at boundaries** — pressing `l`/`L` at 100% or

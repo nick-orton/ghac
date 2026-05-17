@@ -11,7 +11,7 @@ func TestHelpViewContainsSections(t *testing.T) {
 	h := newHelpScreen()
 	view := h.View()
 
-	sections := []string{"Global", "Player Volume", "Playlist Control", "Song Navigator"}
+	sections := []string{"Global", "Player Volume", "Playlist Control", "Library Navigator"}
 	for _, s := range sections {
 		if !strings.Contains(view, s) {
 			t.Errorf("help view missing section %q", s)

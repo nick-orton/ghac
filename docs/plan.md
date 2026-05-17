@@ -9,7 +9,7 @@
   tests for the functionality introduced in that phase.
 - "Deliver half a thing, not a half-assed thing."
 
-## Phase 1: Skeleton, Config, and TUI Shell
+## Phase 1: Skeleton, Config, and TUI Shell (Complete)
 
 **Goal:** A running TUI that reads configuration, switches
 between placeholder screens, and quits cleanly.
@@ -26,17 +26,16 @@ between placeholder screens, and quits cleanly.
   routing. Keys `1`, `2`, `3` switch screens; `?` opens help;
   `q` and `Ctrl-C` quit.
 - Placeholder screens for Player Volume, Playlist Control,
-  and Song Navigator that display their title and a
+  and Library Navigator that display their title and a
   "not yet connected" message.
 - `internal/ui/help.go` — help screen showing all planned
   keybindings organized by section. `Esc` returns to the
   previous screen.
 - `cmd/ghac/main.go` — entry point that loads config and
   starts the TUI.
-- README.md which tells the user how to build, run, and use 
-  the application.  This is a living document which will be
-  updated for all future phases.
-  
+- README.md which tells the user how to build, run, and use
+  the application.
+
 ### 1.2 What Works at the End
 
 The user can run `ghac`, see screens, switch between them
@@ -54,7 +53,7 @@ quit with `q`. Config errors produce clear messages.
 
 ---
 
-## Phase 2: MPD Connection, Now-Playing Bar, Play/Pause
+## Phase 2: MPD Connection, Now-Playing Bar, Play/Pause (Complete)
 
 **Goal:** Connect to a real MPD server, display the
 now-playing bar on every screen, and support play/pause.
@@ -66,7 +65,7 @@ now-playing bar on every screen, and support play/pause.
   `Connect()`, `Close()`, `Status()`, `CurrentSong()`,
   `Play()`, `Pause()`, `Ping()`.
 - `internal/mpd/messages.go` — Bubble Tea message types:
-  `MsgPlayerState`, `MsgTick`.
+  `MsgPlayerState`, `MsgTick`, `MsgError`.
 - MPD idle listener goroutine that watches for player events
   and emits `MsgPlayerState`.
 - Progress ticker goroutine (1-second interval) emitting
@@ -99,7 +98,7 @@ from Phase 1 still works.
 
 ---
 
-## Phase 3: SnapCast Client and Player Volume Screen
+## Phase 3: SnapCast Client and Player Volume Screen (Complete)
 
 **Goal:** Connect to SnapCast, display real client volumes,
 and allow volume/mute control.
@@ -108,11 +107,11 @@ and allow volume/mute control.
 
 - `internal/snapcast/client.go` — custom JSON-RPC over TCP
   client. Methods: `Connect()`, `Close()`,
-  `GetServerStatus()`, `SetVolume(clientID, vol)`,
-  `SetMute(clientID, muted)`. Mutex-protected request map
-  for correlating responses by JSON-RPC ID.
-- `internal/snapcast/messages.go` — `MsgClientsUpdated`
-  message type.
+  `GetServerStatus()`, `SetVolume(clientID, vol, muted)`,
+  `SetMute(clientID, muted, currentVol)`. Mutex-protected
+  request map for correlating responses by JSON-RPC ID.
+- `internal/snapcast/messages.go` — `MsgClientsUpdated` and
+  `MsgError` message types.
 - SnapCast notification listener goroutine that reads the
   TCP stream for server-pushed events and emits
   `MsgClientsUpdated`.
@@ -148,7 +147,7 @@ from other controllers reflected in real time.
 
 ---
 
-## Phase 4: Playlist Control Screen
+## Phase 4: Playlist Control Screen (Complete)
 
 **Goal:** Display and manage the MPD playlist.
 
@@ -163,9 +162,9 @@ from other controllers reflected in real time.
   - One song per line with metadata (title/artist) or
     filename fallback.
   - Currently-playing song marked with `>` prefix and
-    distinct style.
+    bold cyan style.
   - Cursor navigation with `j`/`k`.
-  - `space` toggles selection on songs.
+  - `space` toggles selection on songs (marked with `*`).
   - `x` removes selected songs (or cursor song if none
     selected). Cursor repositions per spec.
   - `X` clears the entire playlist and stops playback.
@@ -189,7 +188,7 @@ Changes from other MPD clients appear in real time.
 
 ---
 
-## Phase 5: Song Navigator Screen
+## Phase 5: Library Navigator Screen (Complete)
 
 **Goal:** Browse the MPD library by directory structure and
 enqueue songs to the playlist.
@@ -199,39 +198,53 @@ enqueue songs to the playlist.
 - Additional MPD client methods: `ListInfo(path)` to list
   directory contents, `Add(uri)` to enqueue a song or
   directory.
-- `internal/ui/navigator.go` — Song Navigator screen:
+- `DirEntry` type in `internal/mpd/messages.go`.
+- `internal/ui/navigator.go` — Library Navigator screen:
   - Directory listing styled after `nnn`: directories
-    visually distinct from files (trailing `/`, bold or
-    different color). Files show filename left-aligned,
-    metadata right-aligned when available.
-  - Breadcrumb / path indicator for current directory.
+    rendered bold with trailing `/`; files show filename
+    left-aligned, metadata ("Title – Artist") right-aligned
+    when terminal width allows.
+  - Breadcrumb line showing the current directory path.
   - Cursor navigation with `j`/`k`.
-  - `h` navigates to parent directory (no-op at root).
+  - `Ctrl-D`/`Ctrl-U` for half-page jumps.
+  - `h` navigates to parent directory (cursor placed on the
+    directory just exited). No-op at root.
   - `l` enters directory under cursor (no-op on files).
-  - `space` toggles selection on entries.
+  - `space` toggles selection on entries (marked with `*`).
   - `enter` enqueues selected entries (or cursor entry if
     none selected). Directories enqueue recursively.
     Clears selection after enqueue.
+  - `+` prefix marker on files already in the playlist
+    (tracked via `inPlaylist map[string]bool`, rebuilt on
+    every `MsgPlaylistChanged`).
+  - Viewport scrolling: only the entries that fit on screen
+    are rendered; the viewport offset auto-adjusts as the
+    cursor moves. Viewport height is calculated from the
+    terminal height minus the fixed UI overhead (7 lines).
 
 ### 5.2 What Works at the End
 
 The user can browse their music library on Screen 3,
 navigate directories, select files and folders, and add
-them to the playlist. All five screens (Volume, Playlist,
-Navigator, Help, Now-Playing bar) are fully functional.
+them to the playlist. The in-playlist marker shows which
+files are already queued. All five screens (Volume,
+Playlist, Navigator, Help, Now-Playing bar) are fully
+functional.
 
 ### 5.3 Testing
 
 - Unit tests for navigator sub-model: cursor movement,
   directory enter/exit, root boundary, selection toggle,
-  enqueue single vs enqueue selected, enqueue directory.
+  enqueue single vs enqueue selected, enqueue directory,
+  viewport offset clamping, half-page jumps.
 - Unit tests for rendering: directory vs file styling,
-  breadcrumb display, empty directory message.
+  breadcrumb display, empty directory message, in-playlist
+  marker.
 - Integration tests for `ListInfo` and `Add` against MPD.
 
 ---
 
-## Phase 6: Edge Cases, Error Handling, and Final Polish
+## Phase 6: Edge Cases, Error Handling, and Final Polish (Upcoming)
 
 **Goal:** Harden the application, handle all documented edge
 cases, and ensure comprehensive test coverage.
@@ -242,7 +255,7 @@ cases, and ensure comprehensive test coverage.
   - Empty playlist state message in Playlist Control and
     now-playing bar.
   - No SnapCast clients state message in Player Volume.
-  - Empty directory state message in Song Navigator.
+  - Empty directory state message in Library Navigator.
   - Removing the currently-playing song (MPD default
     behavior: advance to next).
   - Volume boundary clamping already in place; verify
@@ -285,11 +298,11 @@ cases, and ensure comprehensive test coverage.
 
 ## Phase Summary
 
-| Phase | Focus                    | Screens Working        |
-| ----- | ------------------------ | ---------------------- |
-| 1     | Skeleton, config, shell  | Shell + Help           |
-| 2     | MPD + now-playing        | Now-playing bar + p    |
-| 3     | SnapCast + volume        | Player Volume          |
-| 4     | Playlist control         | Playlist Control       |
-| 5     | Song navigator           | Song Navigator         |
-| 6     | Edge cases + polish      | All (hardened)         |
+| Phase | Focus                    | Status   | Screens Working        |
+| ----- | ------------------------ | -------- | ---------------------- |
+| 1     | Skeleton, config, shell  | Complete | Shell + Help           |
+| 2     | MPD + now-playing        | Complete | Now-playing bar + p    |
+| 3     | SnapCast + volume        | Complete | Player Volume          |
+| 4     | Playlist control         | Complete | Playlist Control       |
+| 5     | Song navigator           | Complete | Library Navigator         |
+| 6     | Edge cases + polish      | Upcoming | All (hardened)         |

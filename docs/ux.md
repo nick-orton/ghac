@@ -10,21 +10,35 @@ ghac uses 256-color terminal codes via lipgloss. The canonical values
 are defined in `internal/ui/styles.go` and must not be duplicated
 elsewhere — reference the style variables directly.
 
-| Role              | Color code | Usage                                  |
-| ----------------- | ---------- | -------------------------------------- |
-| Bar background    | `237`      | Now-playing bar background (dark gray) |
-| Bar foreground    | `255`      | Now-playing bar text (near-white)      |
-| Accent / progress | `6`        | Progress bar filled portion (cyan)     |
-| Progress empty    | `240`      | Progress bar unfilled portion          |
-| Secondary text    | `245`      | Time display, de-emphasized info       |
-| Volume bar unmuted | `2`       | Player Volume bar fill when unmuted (green) |
-| Volume bar muted   | `1`       | Player Volume bar fill when muted (red)     |
-| Current song       | `6`       | Playlist Control currently-playing row (same accent as progress fill) |
+| Role               | Color code | Style variable              | Usage                                  |
+| ------------------ | ---------- | --------------------------- | -------------------------------------- |
+| Bar background     | `237`      | `styleNowPlaying`           | Now-playing bar background (dark gray) |
+| Bar foreground     | `255`      | `styleNowPlaying`           | Now-playing bar text (near-white)      |
+| Accent / progress  | `6`        | `styleProgressFill`         | Progress bar filled portion (cyan)     |
+| Progress empty     | `240`      | `styleProgressEmpty`        | Progress bar unfilled portion          |
+| Secondary text     | `245`      | `styleTime`, `styleNavMeta` | Time display, navigator metadata       |
+| Volume bar unmuted | `2`        | `styleVolumeBarFillUnmuted` | Player Volume bar fill when unmuted (green) |
+| Volume bar muted   | `1`        | `styleVolumeBarFillMuted`   | Player Volume bar fill when muted (red)     |
+| Current song       | `6`        | `stylePlaylistCurrent`      | Playlist Control currently-playing row (bold cyan) |
 
 For elements that do not need a specific color, use lipgloss modifiers
 (`Bold`, `Faint`, `Underline`, `Italic`) rather than introducing new
 color codes. New color codes require a deliberate decision and a doc
 update here.
+
+**Style variables without a color code (modifier-only):**
+
+| Variable           | Modifiers         | Usage                                     |
+| ------------------ | ----------------- | ----------------------------------------- |
+| `styleTitle`       | Bold              | Screen border title text                  |
+| `stylePlaceholder` | Italic + Faint    | Empty state messages, breadcrumb line     |
+| `styleTabActive`   | Bold + Underline  | Active tab in tab strip                   |
+| `styleTabInactive` | Faint             | Inactive tabs in tab strip                |
+| `styleHelpSection` | Bold + Underline  | Help screen section headers               |
+| `styleHelpKey`     | Bold              | Help screen key column                    |
+| `styleHelpDesc`    | Faint             | Help screen description column            |
+| `styleRowActive`   | Bold              | Cursor-highlighted row (all screens)      |
+| `styleNavDir`      | Bold              | Directory names in navigator              |
 
 ## 2. Global Layout
 
@@ -83,7 +97,7 @@ The tab strip is rendered by `Model.tabStripView()` in
 `internal/ui/model.go`. It shows every screen at all times so the
 user always knows both where they are and how to navigate.
 
-**Tabs (in order):** `1:Volume`, `2:Playlist`, `3:Navigator`, `?:Help`
+**Tabs (in order):** `1:Volume`, `2:Playlist`, `3:Library`, `?:Help`
 
 **Styling:**
 - Active tab: `styleTabActive` — bold + underline.
@@ -107,7 +121,118 @@ must **not** render their own title — they return content only,
 starting directly with the first content element (no leading blank
 line). `screenBorder()` is the single place to update title styling.
 
-## 6. Help Screen
+## 6. Player Volume Screen
+
+Each client row follows this layout:
+
+```text
+▶ ClientName            ████████████████░░░░  74%  [M]
+  ClientName            ████████████████░░░░  74%
+```
+
+- Cursor indicator: `▶ ` (2 chars) or `  ` (2 spaces).
+- Client name: left-aligned, padded to 20 characters. Truncated with
+  `…` if longer.
+- Volume bar: 20 characters fixed width. Green (`2`) when unmuted,
+  red (`1`) when muted. Unfilled portion uses color `240`.
+- Percentage: right-aligned, 3 digits + `%`.
+- Mute indicator: `[M]` when muted, 3 spaces otherwise.
+- Cursor row is styled with `styleRowActive` (bold).
+
+## 7. Playlist Control Screen
+
+Each song row follows this prefix layout (5 characters):
+
+```text
+▶ >*  →  cursor(2) + playing(1) + selected(1) + space(1)
+```
+
+- Cursor: `▶ ` or `  `
+- Playing: `>` for the currently-playing song, ` ` otherwise
+- Selected: `*` for selected songs, ` ` otherwise
+- Then the song display name: "Title – Artist" or filename fallback
+
+**Row styling:**
+- Cursor row: `styleRowActive` (bold)
+- Playing row (not cursor): `stylePlaylistCurrent` (bold + cyan `6`)
+- Normal row: unstyled
+
+**Empty state:** `stylePlaceholder` renders "Playlist is empty".
+
+## 8. Library Navigator Screen
+
+### 8.1 Breadcrumb Line
+
+The first line of content is a breadcrumb rendered with
+`stylePlaceholder`:
+
+- Root: `Path: / (root)`
+- Subdirectory: `Path: Artists/Pink Floyd`
+
+### 8.2 Entry Row Layout
+
+Each entry row follows this prefix layout (5 characters):
+
+```text
+cursor(2) + selected(1) + queued(1) + space(1)
+```
+
+- Cursor: `▶ ` or `  `
+- Selected: `*` or ` `
+- Queued (files only): `+` if the file's MPD URI is in the current
+  playlist, ` ` otherwise. Directories always show ` `.
+- Then a space separator before the entry name.
+
+### 8.3 Directory Rows
+
+Directory names are rendered with `styleNavDir` (bold) and a
+trailing `/`:
+
+```text
+▶ *  Albums/
+```
+
+### 8.4 File Rows
+
+Files show the filename left-aligned. When the terminal is wide
+enough (gap >= 2 chars between name and metadata), metadata
+("Title – Artist") is right-aligned on the same line, styled with
+`styleNavMeta` (color `245`):
+
+```text
+   +  track01.flac              Dark Side of the Moon – Pink Floyd
+```
+
+The available width for name + metadata is calculated as:
+`terminal_width - 9` (4 for border padding + 5 for prefix).
+
+When terminal width is insufficient for right-aligned metadata,
+only the filename is shown.
+
+### 8.5 Viewport Scrolling
+
+The navigator implements vertical viewport scrolling. The viewport
+height is calculated as `terminal_height - 7` (overhead: nowplaying,
+separator, tabstrip, separator, border top, breadcrumb, border
+bottom). Before the first `WindowSizeMsg` arrives, a default of 24
+rows is used.
+
+The viewport offset auto-adjusts so the cursor is always visible:
+- If the cursor moves above the viewport, the offset snaps to the
+  cursor position.
+- If the cursor moves below the viewport, the offset advances so
+  the cursor is the last visible row.
+
+`Ctrl-D` and `Ctrl-U` move the cursor by half the viewport height.
+
+### 8.6 Cursor Row Styling
+
+The cursor row is styled with `styleRowActive` (bold), applied to
+the entire row string.
+
+**Empty state:** `stylePlaceholder` renders "Directory is empty".
+
+## 9. Help Screen
 
 Key bindings are displayed in `internal/ui/help.go` organized into
 named sections.
@@ -121,11 +246,17 @@ all sections. Current width: 12 characters (see `helpRow()`).
 - Keys: `styleHelpKey` — bold.
 - Descriptions: `styleHelpDesc` — faint.
 
+**Sections (in order):**
+1. Global
+2. Player Volume
+3. Playlist Control
+4. Library Navigator
+
 When adding a new keybinding, add it to the correct section in
 `help.go` and keep the sections sorted by screen (global first, then
 per-screen in tab order).
 
-## 7. Typography Conventions
+## 10. Typography Conventions
 
 | Element           | Characters to use                              |
 | ----------------- | ---------------------------------------------- |
@@ -136,22 +267,23 @@ per-screen in tab order).
 | Horizontal rule   | `─` (U+2500 BOX DRAWINGS LIGHT HORIZONTAL)     |
 | Border corners    | `┌` `┐` `└` `┘` (U+250C/10/14/18)             |
 | Border sides      | `│` (U+2502 BOX DRAWINGS LIGHT VERTICAL)       |
+| Cursor indicator  | `▶` (U+25B6 BLACK RIGHT-POINTING TRIANGLE)     |
 
 Do not use ASCII hyphens (`-`) as separators in displayed text, or
 `...` (three periods) as an ellipsis. The above Unicode characters
 render correctly on any UTF-8 terminal, which is the minimum
 requirement for running ghac.
 
-## 8. Terminal Compatibility Assumptions
+## 11. Terminal Compatibility Assumptions
 
 - UTF-8 encoding: required.
 - 256-color support: required (color codes above 15 are used).
 - True-color (24-bit): not assumed; do not use hex color strings.
 - Minimum width: 80 columns (components default to this when
-  `width == 0`).
+  `width == 0` or `width < 4`).
 - Alt-screen mode: always active; the TUI owns the full display.
 
-## 9. Adding a New Screen
+## 12. Adding a New Screen
 
 1. Create `internal/ui/<name>.go` with a struct implementing
    `Update(tea.Msg) (<ScreenType>, tea.Cmd)` and `View() string`.

@@ -61,10 +61,10 @@ Executable is `ghac`
 - ’space’ allows a song to be selected for removal
 - ‘enter’ on the currently selected song starts playing that song
 
-### Song Navigator
-- The Song Navigator Screen allows the user to navigate the MusicPD library and
+### Library Navigator
+- The Library Navigator Screen allows the user to navigate the MusicPD library and
   add songs to the playlist
-- The Song Navigator screen allows the user to navigate the music directory via
+- The Library Navigator screen allows the user to navigate the music directory via
   the file-structure view.  
 - The look and feel should approximate a tab in the `nnn` program
 - Keys ‘j’ and ‘k’ navigate down and up the navigator

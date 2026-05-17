@@ -41,6 +41,14 @@ type MsgTick struct {
 	Time time.Time
 }
 
+// DirEntry represents one item in an MPD directory listing.
+type DirEntry struct {
+	Name  string // basename for display
+	Path  string // full MPD URI (relative to music root)
+	IsDir bool
+	Song  Song // populated for files; zero value for directories
+}
+
 // MsgError is sent when the MPD connection is lost or an error occurs.
 type MsgError struct {
 	Err error
