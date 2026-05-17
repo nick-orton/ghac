@@ -151,6 +151,92 @@ func TestIntegrationPlayAt(t *testing.T) {
 	}
 }
 
+func TestIntegrationListInfo(t *testing.T) {
+	c, err := Connect(mpdTestAddr())
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer c.Close()
+
+	entries, err := c.ListInfo("")
+	if err != nil {
+		t.Fatalf("ListInfo root: %v", err)
+	}
+
+	// Every entry must have a non-empty Name and Path.
+	for i, e := range entries {
+		if e.Name == "" {
+			t.Errorf("entries[%d].Name is empty", i)
+		}
+		if e.Path == "" {
+			t.Errorf("entries[%d].Path is empty", i)
+		}
+		// Files must have their path as the Song.File fallback.
+		if !e.IsDir && e.Song.File != e.Path {
+			t.Errorf("entries[%d].Song.File = %q, want %q", i, e.Song.File, e.Path)
+		}
+	}
+
+	// Verify we can list a subdirectory when one exists.
+	for _, e := range entries {
+		if e.IsDir {
+			sub, err := c.ListInfo(e.Path)
+			if err != nil {
+				t.Errorf("ListInfo(%q): %v", e.Path, err)
+			}
+			_ = sub // just verify no error
+			break
+		}
+	}
+}
+
+func TestIntegrationAdd(t *testing.T) {
+	c, err := Connect(mpdTestAddr())
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer c.Close()
+
+	entries, err := c.ListInfo("")
+	if err != nil {
+		t.Fatalf("ListInfo: %v", err)
+	}
+
+	// Find a file entry to add.
+	var fileURI string
+	for _, e := range entries {
+		if !e.IsDir {
+			fileURI = e.Path
+			break
+		}
+	}
+	if fileURI == "" {
+		t.Skip("no files at library root; cannot test Add")
+	}
+
+	before, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo before Add: %v", err)
+	}
+
+	if err := c.Add(fileURI); err != nil {
+		t.Fatalf("Add(%q): %v", fileURI, err)
+	}
+
+	after, err := c.PlaylistInfo()
+	if err != nil {
+		t.Fatalf("PlaylistInfo after Add: %v", err)
+	}
+	if len(after) != len(before)+1 {
+		t.Errorf("playlist len = %d, want %d after Add", len(after), len(before)+1)
+	}
+
+	// Clean up: remove the song we added.
+	if err := c.Delete(len(after) - 1); err != nil {
+		t.Errorf("Delete cleanup: %v", err)
+	}
+}
+
 func TestIntegrationDeleteAndClear(t *testing.T) {
 	c, err := Connect(mpdTestAddr())
 	if err != nil {

@@ -3,6 +3,7 @@ package mpd
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -104,6 +105,58 @@ func (c *Client) Delete(pos int) error {
 // Clear removes all songs from the playlist and stops playback.
 func (c *Client) Clear() error {
 	return c.cmd.Clear()
+}
+
+// ListInfo lists the contents of the directory at path. Use an empty string
+// for the root of the music library. Playlist entries in the response are
+// skipped. Note: gompd's ListInfo lowercases all attribute keys.
+func (c *Client) ListInfo(path string) ([]DirEntry, error) {
+	attrs, err := c.cmd.ListInfo(path)
+	if err != nil {
+		return nil, fmt.Errorf("mpd ListInfo: %w", err)
+	}
+	entries := make([]DirEntry, 0, len(attrs))
+	for _, a := range attrs {
+		if uri, ok := a["directory"]; ok {
+			entries = append(entries, DirEntry{
+				Name:  mpdBase(uri),
+				Path:  uri,
+				IsDir: true,
+			})
+		} else if uri, ok := a["file"]; ok {
+			entries = append(entries, DirEntry{
+				Name:  mpdBase(uri),
+				Path:  uri,
+				IsDir: false,
+				// gompd's ListInfo lowercases all attribute keys (unlike
+				// PlaylistInfo/CurrentSong which preserve MPD's capitalization).
+				// Do NOT replace this with songFromAttrs — it uses "Title" etc.
+				Song: Song{
+					Title:  a["title"],
+					Artist: a["artist"],
+					Album:  a["album"],
+					File:   uri,
+				},
+			})
+		}
+		// playlist entries are skipped
+	}
+	return entries, nil
+}
+
+// Add appends the song or directory at uri to the MPD playback queue.
+// MPD enqueues directories recursively.
+func (c *Client) Add(uri string) error {
+	return c.cmd.Add(uri)
+}
+
+// mpdBase returns the final path segment of an MPD URI, which always uses
+// forward slashes regardless of the operating system.
+func mpdBase(p string) string {
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		return p[i+1:]
+	}
+	return p
 }
 
 // ListenIdle returns a tea.Cmd that blocks until the next MPD player or

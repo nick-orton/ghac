@@ -59,6 +59,7 @@ type NewParams struct {
 	Snapcast    *snapcast.Client
 	SnapClients []snapcast.SnapClient
 	Playlist    []mpd.PlaylistEntry
+	NavEntries  []mpd.DirEntry // initial listing of the music library root
 }
 
 // New creates a new root model with the Player Volume screen active.
@@ -76,7 +77,7 @@ func New(p NewParams) Model {
 		currentSongPos: p.MPDState.SongPos,
 		volume:         newVolumeScreen(p.Snapcast, p.SnapClients),
 		playlist:       newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
-		navigator:      newNavigatorScreen(),
+		navigator:      newNavigatorScreen(p.MPD, p.NavEntries),
 		help:           newHelpScreen(),
 	}
 }
@@ -100,6 +101,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.navigator = m.navigator.withWidth(msg.Width).withHeight(msg.Height)
 		return m, nil
 
 	case mpd.MsgPlayerState:
