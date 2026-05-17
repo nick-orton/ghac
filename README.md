@@ -11,8 +11,8 @@ home audio system. ghac integrates two backend services:
 ## Requirements
 
 - Go 1.25 or later
-- A running MPD instance (Phase 2+)
-- A running SnapCast server instance (Phase 3+)
+- A running MPD instance
+- A running SnapCast server instance
 
 ## Configuration
 
