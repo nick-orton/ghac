@@ -14,7 +14,8 @@ import (
 type navigatorScreen struct {
 	entries     []mpd.DirEntry
 	cursor      int
-	offset      int          // index of the first visible entry (viewport top)
+	offset      int             // index of the first visible entry (viewport top)
+	pendingG    bool            // true after a single 'g' press, waiting for 'gg'
 	selected    map[int]bool
 	inPlaylist  map[string]bool // MPD URIs currently in the playback queue
 	currentPath string          // MPD URI of the current directory; "" for root
@@ -92,6 +93,11 @@ func (s navigatorScreen) clampOffset() navigatorScreen {
 func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Capture and clear the pending-g state before processing the key so
+		// that any key other than 'g' automatically cancels the sequence.
+		wasPendingG := s.pendingG
+		s.pendingG = false
+
 		switch msg.String() {
 		case "j":
 			if s.cursor < len(s.entries)-1 {
@@ -103,6 +109,33 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 				s.cursor--
 				s = s.clampOffset()
 			}
+		case "G":
+			if len(s.entries) > 0 {
+				s.cursor = len(s.entries) - 1
+				s = s.clampOffset()
+			}
+		case "g":
+			if wasPendingG {
+				s.cursor = 0 // gg → top
+				s = s.clampOffset()
+			} else {
+				s.pendingG = true
+			}
+		case "ctrl+d":
+			s.cursor += s.viewportHeight() / 2
+			if s.cursor >= len(s.entries) {
+				s.cursor = len(s.entries) - 1
+			}
+			if s.cursor < 0 {
+				s.cursor = 0
+			}
+			s = s.clampOffset()
+		case "ctrl+u":
+			s.cursor -= s.viewportHeight() / 2
+			if s.cursor < 0 {
+				s.cursor = 0
+			}
+			s = s.clampOffset()
 		case "l":
 			if s.cursor < len(s.entries) && s.entries[s.cursor].IsDir {
 				s = s.enterDir(s.entries[s.cursor].Path)
@@ -141,17 +174,29 @@ func (s navigatorScreen) enterDir(path string) navigatorScreen {
 }
 
 // goUp navigates to the parent directory. No-op at root ("").
+// The cursor is placed on the subdirectory we just left so the user can
+// see where they came from.
 func (s navigatorScreen) goUp() navigatorScreen {
 	if s.currentPath == "" {
 		return s
 	}
+	leaving := navBase(s.currentPath)
 	parent := navParent(s.currentPath)
 	s.entries = s.fetchEntries(parent)
 	s.currentPath = parent
-	s.cursor = 0
-	s.offset = 0
 	s.selected = make(map[int]bool)
-	return s
+
+	// Find the directory we just came from and restore the cursor to it.
+	s.cursor = 0
+	for i, e := range s.entries {
+		if e.IsDir && e.Name == leaving {
+			s.cursor = i
+			break
+		}
+	}
+
+	s.offset = 0
+	return s.clampOffset()
 }
 
 // enqueue adds selected entries (or the cursor entry when nothing is selected)
@@ -310,4 +355,12 @@ func navParent(path string) string {
 		return path[:i]
 	}
 	return ""
+}
+
+// navBase returns the final path segment of an MPD URI.
+func navBase(path string) string {
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[i+1:]
+	}
+	return path
 }

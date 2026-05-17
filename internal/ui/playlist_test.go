@@ -38,6 +38,59 @@ func TestPlaylistCursorMoveDown(t *testing.T) {
 	}
 }
 
+func TestPlaylistGMovesToBottom(t *testing.T) {
+	s := newTestPlaylistScreen() // 4 entries
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})
+	if s.cursor != 3 {
+		t.Errorf("cursor = %d, want 3 (last entry) after G", s.cursor)
+	}
+}
+
+func TestPlaylistGGMovesToTop(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s = pressPlaylistKey(s, "j")
+	s = pressPlaylistKey(s, "j") // cursor=2
+	s = pressPlaylistKey(s, "g")
+	if !s.pendingG {
+		t.Error("pendingG should be true after first g")
+	}
+	s = pressPlaylistKey(s, "g")
+	if s.cursor != 0 {
+		t.Errorf("cursor = %d, want 0 after gg", s.cursor)
+	}
+	if s.pendingG {
+		t.Error("pendingG should be false after gg completes")
+	}
+}
+
+func TestPlaylistSingleGSetsPendingG(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s = pressPlaylistKey(s, "g")
+	if !s.pendingG {
+		t.Error("pendingG should be true after single g press")
+	}
+}
+
+func TestPlaylistPendingGCancelledByOtherKey(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s = pressPlaylistKey(s, "g") // set pendingG
+	s = pressPlaylistKey(s, "j") // cancel
+	if s.pendingG {
+		t.Error("pendingG should be cleared by a non-g key")
+	}
+	if s.cursor != 1 {
+		t.Errorf("cursor = %d, want 1 after j", s.cursor)
+	}
+}
+
+func TestPlaylistGOnEmptyListIsNoop(t *testing.T) {
+	s := newPlaylistScreen(nil, nil, -1)
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})
+	if s.cursor != 0 {
+		t.Errorf("cursor = %d, want 0 after G on empty list", s.cursor)
+	}
+}
+
 func TestPlaylistCursorMoveUp(t *testing.T) {
 	s := newTestPlaylistScreen()
 	s = pressPlaylistKey(s, "j") // cursor=1

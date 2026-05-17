@@ -168,6 +168,8 @@ can move freely after selecting songs.
 | ------- | ----------------------------------------- |
 | `j`     | Move cursor down one song                 |
 | `k`     | Move cursor up one song                   |
+| `gg`    | Move cursor to the first song             |
+| `G`     | Move cursor to the last song              |
 | `space` | Toggle selection on the song under cursor  |
 | `x`     | Remove selected song(s) from the playlist |
 | `X`     | Clear the entire playlist                 |
@@ -228,6 +230,8 @@ Selected entries are marked with a `*` prefix character.
 | -------- | ------------------------------------------ |
 | `j`      | Move cursor down one entry                 |
 | `k`      | Move cursor up one entry                   |
+| `gg`     | Move cursor to the first entry             |
+| `G`      | Move cursor to the last entry              |
 | `Ctrl-D` | Move cursor down half a page               |
 | `Ctrl-U` | Move cursor up half a page                 |
 | `h`      | Navigate up one directory (back / parent)  |

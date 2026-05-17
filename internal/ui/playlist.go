@@ -15,6 +15,7 @@ import (
 type playlistScreen struct {
 	entries    []mpd.PlaylistEntry
 	cursor     int
+	pendingG   bool        // true after a single 'g' press, waiting for 'gg'
 	selected   map[int]bool
 	currentPos int         // playlist position of currently-playing song; -1 if none
 	mc         *mpd.Client // may be nil in tests; commands become no-ops
@@ -53,6 +54,11 @@ func (s playlistScreen) withCurrentPos(pos int) playlistScreen {
 func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Capture and clear the pending-g state before processing the key so
+		// that any key other than 'g' automatically cancels the sequence.
+		wasPendingG := s.pendingG
+		s.pendingG = false
+
 		switch msg.String() {
 		case "j":
 			if s.cursor < len(s.entries)-1 {
@@ -61,6 +67,16 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 		case "k":
 			if s.cursor > 0 {
 				s.cursor--
+			}
+		case "G":
+			if len(s.entries) > 0 {
+				s.cursor = len(s.entries) - 1
+			}
+		case "g":
+			if wasPendingG {
+				s.cursor = 0 // gg → top
+			} else {
+				s.pendingG = true
 			}
 		case " ":
 			if s.cursor < len(s.entries) {
