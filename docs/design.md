@@ -61,7 +61,7 @@ Below the now-playing bar, a persistent tab strip lists every
 screen at all times:
 
 ```
-1:Volume  2:Playlist  3:Navigator  ?:Help
+1:Volume  2:Playlist  3:Library  ?:Help
 ```
 
 The active screen's tab is highlighted (bold + underline);
@@ -90,7 +90,7 @@ These keybindings are active on every screen:
 | -------- | ----------------------------------- |
 | `1`      | Switch to Player Volume screen      |
 | `2`      | Switch to Playlist Control screen   |
-| `3`      | Switch to Song Navigator screen     |
+| `3`      | Switch to Library Navigator screen     |
 | `?`      | Open the Help screen                |
 | `p`      | Toggle play / pause                 |
 | `q`      | Quit the application                |
@@ -186,7 +186,7 @@ can move freely after selecting songs.
   last entry.
 - `X` clears the entire playlist and stops playback.
 
-### 4.3 Song Navigator (Screen 3)
+### 4.3 Library Navigator (Screen 3)
 
 Browses the MPD music library using its directory structure
 and adds songs or directories to the playlist.
@@ -224,7 +224,7 @@ Individual files and directories can be toggled into a
 "selected" state with `space`, similar to Playlist Control.
 Selected entries are marked with a `*` prefix character.
 
-**Song Navigator keybindings:**
+**Library Navigator keybindings:**
 
 | Key      | Action                                               |
 | -------- | ---------------------------------------------------- |
@@ -273,7 +273,7 @@ Selected entries are marked with a `*` prefix character.
 
 Provides a quick-reference for all keybindings across all
 screens. Lists every keybinding organized by section: Global,
-Player Volume, Playlist Control, and Song Navigator. Each
+Player Volume, Playlist Control, and Library Navigator. Each
 entry shows the key and a short description of its action.
 
 | Key   | Action                               |
@@ -310,7 +310,7 @@ the application.
 
 ```text
 ▶ Artist – Title              ████████████░░░░░░░░  2:34 / 5:01
-1:Volume  2:Playlist  3:Navigator  ?:Help
+1:Volume  2:Playlist  3:Library  ?:Help
 ┌─ Player Volume ─────────────────────────────────┐
 │                                                 │
 │  (screen-specific content)                      │
@@ -328,7 +328,7 @@ Global keys active on every screen: `p` play/pause, `q` quit,
   "[ No song playing ]".
 - **No SnapCast clients** — Player Volume shows "No clients
   connected" (italic/faint).
-- **Empty directory** — Song Navigator shows "Directory is
+- **Empty directory** — Library Navigator shows "Directory is
   empty" (italic/faint). `h` still navigates to the parent
   directory.
 - **Root of music library** — `h` does nothing when already

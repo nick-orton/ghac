@@ -26,7 +26,7 @@ func (s helpScreen) View() string {
 	b.WriteString("\n")
 	b.WriteString(helpRow("1", "Switch to Player Volume screen"))
 	b.WriteString(helpRow("2", "Switch to Playlist Control screen"))
-	b.WriteString(helpRow("3", "Switch to Song Navigator screen"))
+	b.WriteString(helpRow("3", "Switch to Library Navigator screen"))
 	b.WriteString(helpRow("?", "Open help screen"))
 	b.WriteString(helpRow("p", "Toggle play / pause"))
 	b.WriteString(helpRow("q / Ctrl-C", "Quit"))
@@ -52,7 +52,7 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("enter", "Start playing the song under cursor"))
 	b.WriteString("\n")
 
-	b.WriteString(styleHelpSection.Render("Song Navigator"))
+	b.WriteString(styleHelpSection.Render("Library Navigator"))
 	b.WriteString("\n")
 	b.WriteString(helpRow("j / k", "Move cursor down / up"))
 	b.WriteString(helpRow("gg / G", "Move cursor to top / bottom"))

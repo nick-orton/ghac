@@ -64,7 +64,7 @@ ghac/
 │       ├── styles.go          # Shared lipgloss styles
 │       ├── volume.go          # Player Volume screen (SnapCast clients)
 │       ├── playlist.go        # Playlist Control screen
-│       ├── navigator.go       # Song Navigator screen (library browser)
+│       ├── navigator.go       # Library Navigator screen (library browser)
 │       └── help.go            # Help screen
 ├── docs/
 │   ├── requirements.md

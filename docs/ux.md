@@ -97,7 +97,7 @@ The tab strip is rendered by `Model.tabStripView()` in
 `internal/ui/model.go`. It shows every screen at all times so the
 user always knows both where they are and how to navigate.
 
-**Tabs (in order):** `1:Volume`, `2:Playlist`, `3:Navigator`, `?:Help`
+**Tabs (in order):** `1:Volume`, `2:Playlist`, `3:Library`, `?:Help`
 
 **Styling:**
 - Active tab: `styleTabActive` — bold + underline.
@@ -159,7 +159,7 @@ Each song row follows this prefix layout (5 characters):
 
 **Empty state:** `stylePlaceholder` renders "Playlist is empty".
 
-## 8. Song Navigator Screen
+## 8. Library Navigator Screen
 
 ### 8.1 Breadcrumb Line
 
@@ -250,7 +250,7 @@ all sections. Current width: 12 characters (see `helpRow()`).
 1. Global
 2. Player Volume
 3. Playlist Control
-4. Song Navigator
+4. Library Navigator
 
 When adding a new keybinding, add it to the correct section in
 `help.go` and keep the sections sorted by screen (global first, then

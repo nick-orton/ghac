@@ -224,7 +224,7 @@ func (m Model) View() string {
 	case screenPlaylist:
 		title, content = "Playlist Control", m.playlist.View()
 	case screenNavigator:
-		title, content = "Song Navigator", m.navigator.View()
+		title, content = "Library Navigator", m.navigator.View()
 	case screenHelp:
 		title, content = "Help", m.help.View()
 	}
@@ -293,7 +293,7 @@ func (m Model) tabStripView() string {
 	tabs := []tab{
 		{screenVolume, "1:Volume"},
 		{screenPlaylist, "2:Playlist"},
-		{screenNavigator, "3:Navigator"},
+		{screenNavigator, "3:Library"},
 		{screenHelp, "?:Help"},
 	}
 	parts := make([]string, len(tabs))

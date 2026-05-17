@@ -26,7 +26,7 @@ between placeholder screens, and quits cleanly.
   routing. Keys `1`, `2`, `3` switch screens; `?` opens help;
   `q` and `Ctrl-C` quit.
 - Placeholder screens for Player Volume, Playlist Control,
-  and Song Navigator that display their title and a
+  and Library Navigator that display their title and a
   "not yet connected" message.
 - `internal/ui/help.go` — help screen showing all planned
   keybindings organized by section. `Esc` returns to the
@@ -188,7 +188,7 @@ Changes from other MPD clients appear in real time.
 
 ---
 
-## Phase 5: Song Navigator Screen (Complete)
+## Phase 5: Library Navigator Screen (Complete)
 
 **Goal:** Browse the MPD library by directory structure and
 enqueue songs to the playlist.
@@ -199,7 +199,7 @@ enqueue songs to the playlist.
   directory contents, `Add(uri)` to enqueue a song or
   directory.
 - `DirEntry` type in `internal/mpd/messages.go`.
-- `internal/ui/navigator.go` — Song Navigator screen:
+- `internal/ui/navigator.go` — Library Navigator screen:
   - Directory listing styled after `nnn`: directories
     rendered bold with trailing `/`; files show filename
     left-aligned, metadata ("Title – Artist") right-aligned
@@ -255,7 +255,7 @@ cases, and ensure comprehensive test coverage.
   - Empty playlist state message in Playlist Control and
     now-playing bar.
   - No SnapCast clients state message in Player Volume.
-  - Empty directory state message in Song Navigator.
+  - Empty directory state message in Library Navigator.
   - Removing the currently-playing song (MPD default
     behavior: advance to next).
   - Volume boundary clamping already in place; verify
@@ -304,5 +304,5 @@ cases, and ensure comprehensive test coverage.
 | 2     | MPD + now-playing        | Complete | Now-playing bar + p    |
 | 3     | SnapCast + volume        | Complete | Player Volume          |
 | 4     | Playlist control         | Complete | Playlist Control       |
-| 5     | Song navigator           | Complete | Song Navigator         |
+| 5     | Song navigator           | Complete | Library Navigator         |
 | 6     | Edge cases + polish      | Upcoming | All (hardened)         |
