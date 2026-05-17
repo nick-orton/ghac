@@ -59,17 +59,19 @@ ghac/
 │   │   ├── messages.go                   # Bubble Tea messages from SnapCast
 │   │   └── client_integration_test.go    # Integration tests (build tag)
 │   └── ui/
-│       ├── model.go           # Root model, screen routing
+│       ├── model.go           # Root model, screen routing, screen border
 │       ├── nowplaying.go      # Now-playing bar component
 │       ├── styles.go          # Shared lipgloss styles
 │       ├── volume.go          # Player Volume screen (SnapCast clients)
-│       ├── playlist.go        # Playlist Control screen (placeholder)
-│       ├── navigator.go       # Song Navigator screen (placeholder)
+│       ├── playlist.go        # Playlist Control screen
+│       ├── navigator.go       # Song Navigator screen (library browser)
 │       └── help.go            # Help screen
 ├── docs/
 │   ├── requirements.md
 │   ├── design.md
-│   └── architecture.md
+│   ├── architecture.md
+│   ├── plan.md
+│   └── ux.md
 ├── go.mod
 └── go.sum
 ```
@@ -95,20 +97,25 @@ main.go
 
 1. Parse config. Exit with error if file missing or invalid.
 2. Dial MPD. Exit with error on failure.
-3. Dial SnapCast. Exit with error on failure.
-4. Query initial state: current song, playlist, SnapCast clients.
-5. Construct root model and start the TUI.
+3. Fetch initial MPD state: player status, playlist, music
+   library root listing.
+4. Dial SnapCast. Exit with error on failure.
+5. Fetch initial SnapCast client list.
+6. Construct root model via `ui.New(NewParams{...})` and start
+   the TUI with alt-screen mode.
 
 ### 4.2 Shutdown
 
 On `q` or `Ctrl-C`, the Bubble Tea program returns. `main.go`
-closes both connections and exits cleanly.
+closes both connections (via deferred `Close()` calls) and exits
+cleanly.
 
 ### 4.3 Connection Loss
 
 If either backend disconnects after startup, the respective
-listener goroutine sends a fatal error message into the Bubble
-Tea loop. The program displays the error and exits.
+listener goroutine sends a fatal error message (`mpd.MsgError`
+or `snapcast.MsgError`) into the Bubble Tea loop. The root model
+stores the error in `errMsg`, renders it, and issues `tea.Quit`.
 
 ## 5. Message Flow
 
@@ -134,24 +141,29 @@ No shared mutable state exists outside the model.
 
 ### 5.1 Message Types
 
-**From MPD:**
+**From MPD (`internal/mpd/messages.go`):**
 
 - `MsgPlayerState` — play/pause/stop status, current song,
   elapsed time, and current song's playlist position (`SongPos`;
   -1 when nothing is playing).
 - `MsgPlaylistChanged` — the playlist was modified; carries the
   full updated `[]PlaylistEntry`.
-- `MsgTick` — periodic tick for progress bar updates (1s
-  interval).
+- `MsgTick` — periodic tick for progress bar updates (1-second
+  interval, driven by `tea.Tick`).
+- `MsgError` — the MPD connection was lost or a fatal error
+  occurred; the root model displays it and quits.
 
-**From SnapCast:**
+**From SnapCast (`internal/snapcast/messages.go`):**
 
 - `MsgClientsUpdated` — one or more clients changed volume,
   mute state, or connected/disconnected.
+- `MsgError` — the SnapCast connection was lost or a fatal
+  error occurred; the root model displays it and quits.
 
 **From user input (built into Bubble Tea):**
 
 - `tea.KeyMsg` — a key was pressed.
+- `tea.WindowSizeMsg` — the terminal was resized.
 
 ## 6. Component Design
 
@@ -159,35 +171,51 @@ No shared mutable state exists outside the model.
 
 The root model (`internal/ui/model.go`) owns:
 
-- The active screen identifier (an enum/int).
+- The active screen identifier (a `screenID` enum/int).
 - The previous screen (for help-screen return).
-- Sub-models for each screen.
-- References to the MPD and SnapCast clients (for issuing
+- Terminal dimensions (`width`, `height`).
+- Sub-models for each screen (`volume`, `playlist`, `navigator`,
+  `help`).
+- Pointers to the MPD and SnapCast clients (for issuing
   commands).
-- Shared state: current player status, now-playing info.
+- Shared player state: `playerStatus`, `currentSong`, `elapsed`,
+  `totalDuration`, `currentSongPos`.
+- `errMsg` for fatal error display.
 
-The root model's `Update` method handles global keys (screen
-switching, play/pause, quit) and delegates remaining keys to
-the active screen's sub-model.
+The root model's `Update` method handles:
+
+1. `tea.WindowSizeMsg` — stores dimensions and propagates width
+   and height to the navigator screen.
+2. `MsgPlayerState` — updates player state fields, updates the
+   playlist screen's current position, re-subscribes to idle.
+3. `MsgPlaylistChanged` — updates the playlist screen's entries,
+   updates the navigator screen's in-playlist set, re-subscribes
+   to idle.
+4. `MsgTick` — increments elapsed time by 1 second when playing,
+   re-subscribes to tick.
+5. `mpd.MsgError` / `snapcast.MsgError` — stores error and quits.
+6. `tea.KeyMsg` — handles global keys (screen switching,
+   play/pause, quit) and delegates remaining keys to the active
+   screen's sub-model via `delegateToActiveScreen()`.
 
 ### 6.2 Screen Sub-Models
 
-Each screen implements a consistent interface:
+Each screen is a struct with `Update` and `View` methods:
 
 ```go
-type Screen interface {
-    Update(msg tea.Msg) (Screen, tea.Cmd)
-    View() string
-}
+func (s screenType) Update(msg tea.Msg) (screenType, tea.Cmd)
+func (s screenType) View() string
 ```
 
 Screens do not import each other. They receive state they need
-from the root model or via messages.
+from the root model or via messages. Each screen's `View()`
+returns content only — no title or border. The root model wraps
+it with `screenBorder()`.
 
 ### 6.3 Now-Playing Component
 
 A stateless view function (`NowPlayingView` in `nowplaying.go`)
-that accepts current player state and terminal width, returning
+that accepts a `PlayerState` struct and terminal width, returning
 a rendered string. It is called once by `Model.View()` to
 compose the top bar; individual screen `View()` methods do not
 call it.
@@ -198,16 +226,37 @@ call it.
 
 Wraps `gompd` and exposes two concerns:
 
-1. **Command interface** — methods like `Play()`, `Pause()`,
-   `Remove(pos int)`, `Add(uri string)` that issue MPD commands.
-   Called synchronously from the Bubble Tea `Update` in response
-   to user input (MPD commands are fast, sub-millisecond on
-   LAN).
+1. **Command interface** — methods called synchronously from the
+   Bubble Tea `Update` in response to user input (MPD commands
+   are fast, sub-millisecond on LAN):
+   - `Connect(addr)` — dials MPD, returns a `*Client`.
+   - `Close()` — closes both connections.
+   - `Ping()` — keep-alive.
+   - `Status()` — returns `MsgPlayerState`.
+   - `CurrentSong()` — returns `Song`.
+   - `Play()` — resumes playback (no position argument).
+   - `Pause()` — pauses playback.
+   - `PlaylistInfo()` — returns `[]PlaylistEntry` for the full
+     queue.
+   - `PlayAt(pos)` — starts playing at a 0-indexed position.
+   - `Delete(pos)` — removes one song at a 0-indexed position.
+   - `Clear()` — removes all songs and stops playback.
+   - `ListInfo(path)` — lists a directory's contents, returning
+     `[]DirEntry`. Empty string for the music library root.
+     Note: gompd's `ListInfo` lowercases all attribute keys,
+     unlike other query methods that preserve MPD's original
+     capitalization. Playlist entries in the MPD response are
+     skipped.
+   - `Add(uri)` — appends a song or directory (recursively) to
+     the playback queue.
 
 2. **Idle listener** — a long-running goroutine that calls
    `gompd`'s `Watch` to block on MPD idle events. On each event
    it queries the relevant subsystem and emits a `tea.Msg` via
-   a `tea.Cmd` channel.
+   a `tea.Cmd` channel. Watches both `player` and `playlist`
+   subsystems; returns `MsgPlayerState` on player events and
+   `MsgPlaylistChanged` on playlist events. Returns `MsgError`
+   on connection loss.
 
 The MPD protocol requires a separate connection for idle
 watching (it monopolizes the connection). The client therefore
@@ -229,15 +278,16 @@ A custom client implementing SnapCast's JSON-RPC over TCP:
    each JSON-RPC message, and dispatches it: responses go to
    the waiting caller's channel (keyed by request ID);
    server-initiated notifications go to an internal `notify`
-   channel.
+   channel (buffered, capacity 16).
 
 3. **Notification listener** (`ListenNotifications()`) —
    returns a `tea.Cmd` that blocks on the `notify` channel.
    On each notification it calls `GetServerStatus()` to fetch
    the full updated client list and returns
-   `MsgClientsUpdated`. The root model re-calls it from
-   `Update` to keep listening — the same re-subscribe pattern
-   used by the MPD idle listener.
+   `MsgClientsUpdated`. Returns `MsgError` on connection loss.
+   The root model re-calls it from `Update` to keep
+   listening — the same re-subscribe pattern used by the MPD
+   idle listener.
 
 The SnapCast protocol multiplexes commands and notifications on
 a single connection. The client uses a mutex-protected request
@@ -256,6 +306,9 @@ in the package that owns them.
 - Player state fields (`playerStatus`, `currentSong`,
   `elapsed`, `totalDuration`, `currentSongPos`) — populated
   from MPD messages.
+- Terminal dimensions (`width`, `height`).
+- `errMsg` — set on fatal errors; when non-empty, `View()`
+  renders only the error and `Update()` quits.
 - Sub-models for each screen (`volume`, `playlist`,
   `navigator`, `help`).
 - Pointers to the MPD and SnapCast clients.
@@ -274,6 +327,13 @@ type PlaylistEntry struct {
     Song
     Pos int // 0-indexed position in the playlist
 }
+
+type DirEntry struct {
+    Name  string // basename for display
+    Path  string // full MPD URI (relative to music root)
+    IsDir bool
+    Song  Song   // populated for files; zero value for directories
+}
 ```
 
 **SnapCast types** (`internal/snapcast/messages.go`):
@@ -287,11 +347,26 @@ type SnapClient struct {
 }
 ```
 
-The volume screen sub-model owns `[]SnapClient` and updates it
-when `MsgClientsUpdated` arrives. The playlist screen sub-model
-owns `[]PlaylistEntry` and updates it when `MsgPlaylistChanged`
-arrives. Navigator state types (`DirEntry`) will be added in
-Phase 5.
+**Volume screen** (`volumeScreen`) owns `[]SnapClient` and a
+cursor index. Updates when `MsgClientsUpdated` arrives via
+`withClients()`. Holds a pointer to the SnapCast client for
+issuing volume/mute commands.
+
+**Playlist screen** (`playlistScreen`) owns `[]PlaylistEntry`,
+a cursor index, a `map[int]bool` selection set, and the
+`currentPos` of the playing song. Updates when
+`MsgPlaylistChanged` arrives via `withEntries()`. Holds a
+pointer to the MPD client for issuing playlist commands.
+
+**Navigator screen** (`navigatorScreen`) owns `[]DirEntry`,
+a cursor index, a viewport `offset`, a `map[int]bool` selection
+set, a `map[string]bool` `inPlaylist` set (MPD URIs currently
+in the queue), `currentPath` (current directory URI), and
+terminal `width`/`height`. The entry list updates synchronously
+when the user navigates directories (calling `ListInfo` directly
+from the `Update` method). The `inPlaylist` map updates from
+`MsgPlaylistChanged` via `withPlaylist()`. Holds a pointer to
+the MPD client for browsing and enqueue commands.
 
 ## 9. Configuration
 
@@ -318,6 +393,9 @@ port = 1705
 ip = "192.168.1.10"
 port = 6600
 ```
+
+Validation: IP must be non-empty, port must be 1–65535 for both
+servers.
 
 ## 10. Concurrency Model
 
@@ -355,12 +433,13 @@ mutex are the sole exception, as noted in 7.2).
 
 - **Startup errors** (bad config, connection refused): print to
   stderr, exit non-zero.
-- **Runtime connection loss**: send a fatal message into the
-  Bubble Tea loop; the program renders the error and quits.
+- **Runtime connection loss**: send a fatal message (`MsgError`)
+  into the Bubble Tea loop; the program stores it in `errMsg`,
+  renders the error, and quits.
 - **Command failures** (e.g., MPD returns an error for a remove
-  operation): log the error in a transient status area or
-  silently ignore if the failure is benign (like volume at
-  boundary).
+  operation): errors are silently discarded (the caller ignores
+  the return via `_ = ...`). The server confirms the operation
+  via a subsequent idle notification.
 
 ## 12. Testing Strategy
 
