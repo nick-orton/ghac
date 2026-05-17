@@ -1,4 +1,4 @@
-# ghac — Go Home Audio Controller: Product Design
+# ghac — Great Home Audio Controller: Product Design
 
 ## 1. Purpose
 
