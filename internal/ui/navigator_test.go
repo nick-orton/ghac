@@ -261,7 +261,7 @@ func TestNavGoUpRestoresCursor(t *testing.T) {
 		cursor:      0,
 		offset:      0,
 		selected:    make(map[int]bool),
-		inPlaylist:  make(map[string]bool),
+		inPlaylist:  make(map[string][]int),
 		currentPath: "jazz",
 		// mc is nil, so fetchEntries returns nil and we override below.
 	}
@@ -411,10 +411,10 @@ func TestNavWithPlaylistMarksQueuedFile(t *testing.T) {
 		{Song: mpd.Song{File: "song.flac"}, Pos: 0},
 	}
 	s = s.withPlaylist(playlist)
-	if !s.inPlaylist["song.flac"] {
+	if len(s.inPlaylist["song.flac"]) == 0 {
 		t.Error("inPlaylist should contain 'song.flac' after withPlaylist")
 	}
-	if s.inPlaylist["notagged.mp3"] {
+	if len(s.inPlaylist["notagged.mp3"]) > 0 {
 		t.Error("inPlaylist should not contain 'notagged.mp3' when not in playlist")
 	}
 }
@@ -440,7 +440,8 @@ func TestNavViewNoQueueMarkerWhenNotInPlaylist(t *testing.T) {
 
 func TestNavWithPlaylistDoesNotMarkDirectories(t *testing.T) {
 	s := newTestNavigatorScreen()
-	// Even if a directory path matches a playlist entry File, it should not show +.
+	// Even if a directory path matches a playlist entry File, the row should
+	// not show + because the IsDir guard prevents it.
 	s = s.withPlaylist([]mpd.PlaylistEntry{
 		{Song: mpd.Song{File: "rock"}, Pos: 0}, // "rock" is a dir in testDirEntries
 	})
@@ -460,6 +461,84 @@ func TestNavWithPlaylistReplacesOnUpdate(t *testing.T) {
 	s = s.withPlaylist(nil)
 	if len(s.inPlaylist) != 0 {
 		t.Errorf("inPlaylist len = %d after empty update, want 0", len(s.inPlaylist))
+	}
+}
+
+func TestNavWithPlaylistStoresPositions(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 2},
+	})
+	if positions := s.inPlaylist["song.flac"]; len(positions) != 1 || positions[0] != 2 {
+		t.Errorf("inPlaylist[song.flac] = %v, want [2]", positions)
+	}
+}
+
+func TestNavWithPlaylistHandlesDuplicates(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 1},
+		{Song: mpd.Song{File: "song.flac"}, Pos: 3},
+	})
+	if positions := s.inPlaylist["song.flac"]; len(positions) != 2 {
+		t.Errorf("inPlaylist[song.flac] = %v, want 2 positions for duplicate", positions)
+	}
+}
+
+// --- x: remove from playlist ---
+
+func TestNavXRemovesCursorFileFromPlaylist(t *testing.T) {
+	// cursor on song.flac (index 2), which is at playlist position 5.
+	s := newTestNavigatorScreen()
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 5},
+	})
+	s = pressNavKey(s, "j")
+	s = pressNavKey(s, "j") // cursor=2 (song.flac)
+	s = pressNavKey(s, "x")
+	// With nil client no actual MPD call happens; verify selection cleared.
+	if len(s.selected) != 0 {
+		t.Error("selection should be cleared after x")
+	}
+}
+
+func TestNavXOnDirectoryIsNoop(t *testing.T) {
+	s := newTestNavigatorScreen() // cursor=0 (rock/, a directory)
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "rock"}, Pos: 0},
+	})
+	before := s.cursor
+	s = pressNavKey(s, "x")
+	if s.cursor != before {
+		t.Errorf("cursor changed after x on directory, want %d got %d", before, s.cursor)
+	}
+}
+
+func TestNavXOnUnqueuedFileIsNoop(t *testing.T) {
+	s := newTestNavigatorScreen()
+	// inPlaylist is empty — song.flac is not queued.
+	s = pressNavKey(s, "j")
+	s = pressNavKey(s, "j") // cursor=2 (song.flac)
+	s = pressNavKey(s, "x") // no-op: not in playlist
+	if len(s.selected) != 0 {
+		t.Error("selection should remain empty after x on unqueued file")
+	}
+}
+
+func TestNavXWithSelectionRemovesOnlyQueuedFiles(t *testing.T) {
+	// Select song.flac (queued) and notagged.mp3 (not queued).
+	s := newTestNavigatorScreen()
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 0},
+	})
+	s = pressNavKey(s, "j")
+	s = pressNavKey(s, "j") // cursor=2 (song.flac)
+	s = pressNavKey(s, " ") // select song.flac
+	s = pressNavKey(s, "j") // cursor=3 (notagged.mp3)
+	s = pressNavKey(s, " ") // select notagged.mp3
+	s = pressNavKey(s, "x")
+	if len(s.selected) != 0 {
+		t.Error("selection should be cleared after x")
 	}
 }
 

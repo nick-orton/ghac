@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,7 +18,7 @@ type navigatorScreen struct {
 	offset      int             // index of the first visible entry (viewport top)
 	pendingG    bool            // true after a single 'g' press, waiting for 'gg'
 	selected    map[int]bool
-	inPlaylist  map[string]bool // MPD URIs currently in the playback queue
+	inPlaylist  map[string][]int // MPD URI → playlist positions (supports duplicates)
 	currentPath string          // MPD URI of the current directory; "" for root
 	width       int             // terminal width for right-aligned metadata
 	height      int             // terminal height for viewport sizing
@@ -30,18 +31,18 @@ func newNavigatorScreen(mc *mpd.Client, entries []mpd.DirEntry) navigatorScreen 
 		cursor:     0,
 		offset:     0,
 		selected:   make(map[int]bool),
-		inPlaylist: make(map[string]bool),
+		inPlaylist: make(map[string][]int),
 		mc:         mc,
 	}
 }
 
-// withPlaylist returns a copy with the set of queued URIs rebuilt from entries.
-// Call this whenever the MPD playlist changes so the navigator can mark files
-// that are already in the queue.
+// withPlaylist rebuilds the inPlaylist map from the current queue entries.
+// Each URI maps to all playlist positions it occupies (a song may appear
+// multiple times). Call this whenever the MPD playlist changes.
 func (s navigatorScreen) withPlaylist(entries []mpd.PlaylistEntry) navigatorScreen {
-	m := make(map[string]bool, len(entries))
+	m := make(map[string][]int, len(entries))
 	for _, e := range entries {
-		m[e.File] = true
+		m[e.File] = append(m[e.File], e.Pos)
 	}
 	s.inPlaylist = m
 	return s
@@ -156,11 +157,55 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 					s.selected[s.cursor] = true
 				}
 			}
+		case "x":
+			s = s.removeFromPlaylist()
 		case "enter":
 			s = s.enqueue()
 		}
 	}
 	return s, nil
+}
+
+// removeFromPlaylist deletes from the MPD playlist every queued file that is
+// currently selected (or the cursor entry if nothing is selected). Directories
+// and files not in the playlist are silently skipped. Positions are deleted in
+// descending order so earlier positions are not shifted by later removals.
+// Clears the selection after deleting.
+func (s navigatorScreen) removeFromPlaylist() navigatorScreen {
+	if len(s.entries) == 0 {
+		return s
+	}
+
+	var uris []string
+	if len(s.selected) > 0 {
+		for i := range s.selected {
+			if i < len(s.entries) && !s.entries[i].IsDir {
+				uris = append(uris, s.entries[i].Path)
+			}
+		}
+	} else if s.cursor < len(s.entries) && !s.entries[s.cursor].IsDir {
+		uris = []string{s.entries[s.cursor].Path}
+	}
+
+	// Collect all playlist positions for the target URIs.
+	var positions []int
+	for _, uri := range uris {
+		positions = append(positions, s.inPlaylist[uri]...)
+	}
+	if len(positions) == 0 {
+		return s
+	}
+
+	// Delete highest positions first so lower positions stay valid.
+	sort.Sort(sort.Reverse(sort.IntSlice(positions)))
+	if s.mc != nil {
+		for _, pos := range positions {
+			_ = s.mc.Delete(pos)
+		}
+	}
+
+	s.selected = make(map[int]bool)
+	return s
 }
 
 // enterDir navigates into the directory at path, resetting cursor and selection.
@@ -298,7 +343,7 @@ func (s navigatorScreen) renderRow(i int, entry mpd.DirEntry) string {
 	}
 
 	queued := " "
-	if !entry.IsDir && s.inPlaylist[entry.Path] {
+	if !entry.IsDir && len(s.inPlaylist[entry.Path]) > 0 {
 		queued = "+"
 	}
 

@@ -226,18 +226,19 @@ Selected entries are marked with a `*` prefix character.
 
 **Song Navigator keybindings:**
 
-| Key      | Action                                     |
-| -------- | ------------------------------------------ |
-| `j`      | Move cursor down one entry                 |
-| `k`      | Move cursor up one entry                   |
-| `gg`     | Move cursor to the first entry             |
-| `G`      | Move cursor to the last entry              |
-| `Ctrl-D` | Move cursor down half a page               |
-| `Ctrl-U` | Move cursor up half a page                 |
-| `h`      | Navigate up one directory (back / parent)  |
-| `l`      | Enter the directory under cursor           |
-| `space`  | Toggle selection on the entry under cursor |
-| `enter`  | Enqueue selected entries to the playlist   |
+| Key      | Action                                               |
+| -------- | ---------------------------------------------------- |
+| `j`      | Move cursor down one entry                           |
+| `k`      | Move cursor up one entry                             |
+| `gg`     | Move cursor to the first entry                       |
+| `G`      | Move cursor to the last entry                        |
+| `Ctrl-D` | Move cursor down half a page                         |
+| `Ctrl-U` | Move cursor up half a page                           |
+| `h`      | Navigate up one directory (back / parent)            |
+| `l`      | Enter the directory under cursor                     |
+| `space`  | Toggle selection on the entry under cursor           |
+| `x`      | Remove selected file(s) from the playlist            |
+| `enter`  | Enqueue selected entries to the playlist             |
 
 **Navigation behavior:**
 
@@ -245,6 +246,18 @@ Selected entries are marked with a `*` prefix character.
   on the subdirectory that was just exited so the user can see
   where they came from. No-op at the music library root.
 - `l` enters a directory. No-op on files.
+
+**Remove behavior (`x`):**
+
+- If one or more entries are selected, `x` removes all
+  selected files that are currently in the playlist.
+- If no entries are selected, `x` removes the file under
+  the cursor if it is in the playlist.
+- Directories and files not in the playlist are silently
+  skipped — `x` is never an error.
+- When a song appears in the playlist multiple times, all
+  occurrences are removed.
+- After removal the selection is cleared.
 
 **Enqueue behavior:**
 

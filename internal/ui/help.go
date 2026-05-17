@@ -60,6 +60,7 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("h", "Navigate to parent directory"))
 	b.WriteString(helpRow("l", "Enter directory under cursor"))
 	b.WriteString(helpRow("space", "Toggle selection on entry under cursor"))
+	b.WriteString(helpRow("x", "Remove selected file(s) from playlist (skips dirs / unqueued)"))
 	b.WriteString(helpRow("enter", "Enqueue selected entries (or cursor entry if none selected)"))
 
 	return b.String()
