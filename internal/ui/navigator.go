@@ -14,22 +14,36 @@ import (
 type navigatorScreen struct {
 	entries     []mpd.DirEntry
 	cursor      int
-	offset      int        // index of the first visible entry (viewport top)
+	offset      int          // index of the first visible entry (viewport top)
 	selected    map[int]bool
-	currentPath string     // MPD URI of the current directory; "" for root
-	width       int        // terminal width for right-aligned metadata
-	height      int        // terminal height for viewport sizing
-	mc          *mpd.Client // may be nil in tests; commands become no-ops
+	inPlaylist  map[string]bool // MPD URIs currently in the playback queue
+	currentPath string          // MPD URI of the current directory; "" for root
+	width       int             // terminal width for right-aligned metadata
+	height      int             // terminal height for viewport sizing
+	mc          *mpd.Client     // may be nil in tests; commands become no-ops
 }
 
 func newNavigatorScreen(mc *mpd.Client, entries []mpd.DirEntry) navigatorScreen {
 	return navigatorScreen{
-		entries:  entries,
-		cursor:   0,
-		offset:   0,
-		selected: make(map[int]bool),
-		mc:       mc,
+		entries:    entries,
+		cursor:     0,
+		offset:     0,
+		selected:   make(map[int]bool),
+		inPlaylist: make(map[string]bool),
+		mc:         mc,
 	}
+}
+
+// withPlaylist returns a copy with the set of queued URIs rebuilt from entries.
+// Call this whenever the MPD playlist changes so the navigator can mark files
+// that are already in the queue.
+func (s navigatorScreen) withPlaylist(entries []mpd.PlaylistEntry) navigatorScreen {
+	m := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		m[e.File] = true
+	}
+	s.inPlaylist = m
+	return s
 }
 
 // withWidth returns a copy with the terminal width updated (used for metadata
@@ -213,13 +227,20 @@ func (s navigatorScreen) View() string {
 
 // renderRow produces one line for a directory entry.
 //
+// Prefix layout (5 characters before the name):
+//
+//	▶ *+  →  cursor + selected + in-playlist
+//	  *   →  selected only
+//	   +  →  in-playlist only (file already queued)
+//	      →  none
+//
 // Layout for directories:
 //
-//	▶ * DirectoryName/
+//	▶ *  DirectoryName/
 //
 // Layout for files (metadata right-aligned when terminal width is known):
 //
-//	▶ * filename.flac          Title – Artist
+//	▶ *+ filename.flac          Title – Artist
 func (s navigatorScreen) renderRow(i int, entry mpd.DirEntry) string {
 	cursor := "  "
 	if i == s.cursor {
@@ -231,7 +252,12 @@ func (s navigatorScreen) renderRow(i int, entry mpd.DirEntry) string {
 		sel = "*"
 	}
 
-	prefix := cursor + sel + " " // always 4 visible characters
+	queued := " "
+	if !entry.IsDir && s.inPlaylist[entry.Path] {
+		queued = "+"
+	}
+
+	prefix := cursor + sel + queued + " " // always 5 visible characters
 
 	var row string
 	if entry.IsDir {
@@ -245,8 +271,8 @@ func (s navigatorScreen) renderRow(i int, entry mpd.DirEntry) string {
 			if w < 40 {
 				w = 80 // default before WindowSizeMsg arrives
 			}
-			// innerWidth = terminal width minus border (4) minus prefix (4).
-			available := w - 8
+			// innerWidth = terminal width minus border (4) minus prefix (5).
+			available := w - 9
 			nameW := lipgloss.Width(entry.Name)
 			metaW := lipgloss.Width(meta)
 			gap := available - nameW - metaW

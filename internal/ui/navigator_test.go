@@ -233,6 +233,66 @@ func TestNavEnqueueCursorWhenNothingSelected(t *testing.T) {
 	}
 }
 
+// --- withPlaylist / in-queue marker ---
+
+func TestNavWithPlaylistMarksQueuedFile(t *testing.T) {
+	s := newTestNavigatorScreen()
+	playlist := []mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 0},
+	}
+	s = s.withPlaylist(playlist)
+	if !s.inPlaylist["song.flac"] {
+		t.Error("inPlaylist should contain 'song.flac' after withPlaylist")
+	}
+	if s.inPlaylist["notagged.mp3"] {
+		t.Error("inPlaylist should not contain 'notagged.mp3' when not in playlist")
+	}
+}
+
+func TestNavViewShowsQueueMarkerForQueuedFile(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 0},
+	})
+	view := s.View()
+	if !strings.Contains(view, "+") {
+		t.Error("view should contain '+' marker for a file in the playlist")
+	}
+}
+
+func TestNavViewNoQueueMarkerWhenNotInPlaylist(t *testing.T) {
+	s := newTestNavigatorScreen() // inPlaylist is empty
+	view := s.View()
+	if strings.Contains(view, "+") {
+		t.Error("view should not contain '+' when no files are in the playlist")
+	}
+}
+
+func TestNavWithPlaylistDoesNotMarkDirectories(t *testing.T) {
+	s := newTestNavigatorScreen()
+	// Even if a directory path matches a playlist entry File, it should not show +.
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "rock"}, Pos: 0}, // "rock" is a dir in testDirEntries
+	})
+	// Render the row for the "rock" directory (index 0).
+	row := s.renderRow(0, s.entries[0])
+	if strings.Contains(row, "+") {
+		t.Error("directory rows should never show the '+' queue marker")
+	}
+}
+
+func TestNavWithPlaylistReplacesOnUpdate(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s = s.withPlaylist([]mpd.PlaylistEntry{
+		{Song: mpd.Song{File: "song.flac"}, Pos: 0},
+	})
+	// Now update with an empty playlist.
+	s = s.withPlaylist(nil)
+	if len(s.inPlaylist) != 0 {
+		t.Errorf("inPlaylist len = %d after empty update, want 0", len(s.inPlaylist))
+	}
+}
+
 // --- View rendering ---
 
 func TestNavViewShowsBreadcrumbAtRoot(t *testing.T) {

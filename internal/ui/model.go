@@ -77,7 +77,7 @@ func New(p NewParams) Model {
 		currentSongPos: p.MPDState.SongPos,
 		volume:         newVolumeScreen(p.Snapcast, p.SnapClients),
 		playlist:       newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
-		navigator:      newNavigatorScreen(p.MPD, p.NavEntries),
+		navigator:      newNavigatorScreen(p.MPD, p.NavEntries).withPlaylist(p.Playlist),
 		help:           newHelpScreen(),
 	}
 }
@@ -119,6 +119,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case mpd.MsgPlaylistChanged:
 		m.playlist = m.playlist.withEntries(msg.Entries, m.currentSongPos)
+		m.navigator = m.navigator.withPlaylist(msg.Entries)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
