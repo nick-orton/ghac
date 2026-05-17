@@ -372,6 +372,43 @@ func TestPlaylistViewShowsFilenameAsFallback(t *testing.T) {
 	}
 }
 
+// --- Remove currently-playing song ---
+
+func TestPlaylistRemoveCurrentlyPlayingSong(t *testing.T) {
+	// Playlist has 3 entries; entry at pos 1 is currently playing.
+	entries := []mpd.PlaylistEntry{
+		{Song: mpd.Song{Title: "Alpha", File: "a.flac"}, Pos: 0},
+		{Song: mpd.Song{Title: "Beta", File: "b.flac"}, Pos: 1},
+		{Song: mpd.Song{Title: "Gamma", File: "c.flac"}, Pos: 2},
+	}
+	s := newPlaylistScreen(nil, entries, 1) // currentPos = 1 (Beta is playing)
+	s = pressPlaylistKey(s, "j")           // move cursor to 1 (the playing song)
+	if s.cursor != 1 {
+		t.Fatalf("cursor = %d, want 1 before removal", s.cursor)
+	}
+
+	s = pressPlaylistKey(s, "x") // remove Beta (the playing song)
+
+	if len(s.entries) != 2 {
+		t.Fatalf("entries len = %d, want 2 after removing playing song", len(s.entries))
+	}
+	// Alpha and Gamma remain.
+	if s.entries[0].Title != "Alpha" {
+		t.Errorf("entries[0].Title = %q, want Alpha", s.entries[0].Title)
+	}
+	if s.entries[1].Title != "Gamma" {
+		t.Errorf("entries[1].Title = %q, want Gamma", s.entries[1].Title)
+	}
+	// Cursor stays at 1 (now pointing at Gamma).
+	if s.cursor != 1 {
+		t.Errorf("cursor = %d, want 1 after removing mid-list playing song", s.cursor)
+	}
+	// Selection is cleared.
+	if len(s.selected) != 0 {
+		t.Error("selection should be cleared after x")
+	}
+}
+
 // --- entryDisplayName ---
 
 func TestEntryDisplayNameTitleAndArtist(t *testing.T) {
