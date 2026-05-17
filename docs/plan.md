@@ -244,7 +244,7 @@ functional.
 
 ---
 
-## Phase 6: Edge Cases, Error Handling, and Final Polish (Upcoming)
+## Phase 6: Edge Cases, Error Handling, and Final Polish (Complete)
 
 **Goal:** Harden the application, handle all documented edge
 cases, and ensure comprehensive test coverage.
@@ -305,4 +305,4 @@ cases, and ensure comprehensive test coverage.
 | 3     | SnapCast + volume        | Complete | Player Volume          |
 | 4     | Playlist control         | Complete | Playlist Control       |
 | 5     | Song navigator           | Complete | Library Navigator         |
-| 6     | Edge cases + polish      | Upcoming | All (hardened)         |
+| 6     | Edge cases + polish      | Complete | All (hardened)         |

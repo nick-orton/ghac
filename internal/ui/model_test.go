@@ -2,12 +2,14 @@ package ui
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"ghac/internal/mpd"
+	"ghac/internal/snapcast"
 )
 
 // newTestModel returns a root model with no backend clients (safe for unit tests).
@@ -209,4 +211,94 @@ func TestPlayKeyIgnoredWithNoClient(t *testing.T) {
 	m = updated.(Model)
 	_ = cmd // cmd is nil when no client; that's fine
 	_ = m
+}
+
+func TestSnapcastMsgErrorSetsErrMsgAndQuits(t *testing.T) {
+	m := newTestModel()
+
+	updated, cmd := m.Update(snapcast.MsgError{Err: errors.New("snapcast disconnected")})
+	m = updated.(Model)
+
+	if m.errMsg == "" {
+		t.Error("errMsg should be set after snapcast.MsgError")
+	}
+	if cmd == nil {
+		t.Error("expected quit cmd after snapcast.MsgError, got nil")
+	}
+	msg := cmd()
+	if _, ok := msg.(tea.QuitMsg); !ok {
+		t.Errorf("expected tea.QuitMsg after snapcast.MsgError, got %T", msg)
+	}
+}
+
+func TestErrorViewRendersMessage(t *testing.T) {
+	m := newTestModel()
+	m.errMsg = "mpd connection lost"
+
+	view := m.View()
+
+	if !strings.Contains(view, "Error: mpd connection lost") {
+		t.Errorf("View() should contain the error message, got: %q", view)
+	}
+}
+
+func TestErrorViewDoesNotRenderScreenContent(t *testing.T) {
+	m := newTestModel()
+	m.errMsg = "mpd connection lost"
+
+	view := m.View()
+
+	// Screen content and navigation should not appear when an error is set.
+	if strings.Contains(view, "1:Volume") {
+		t.Error("View() should not contain tab strip when errMsg is set")
+	}
+	if strings.Contains(view, "Player Volume") {
+		t.Error("View() should not contain screen title when errMsg is set")
+	}
+}
+
+func TestRootModelPlayingSongRemovedThenStateAdvances(t *testing.T) {
+	// Start with a 3-song playlist; song at pos 1 is playing.
+	entries := []mpd.PlaylistEntry{
+		{Song: mpd.Song{Title: "Alpha", File: "a.flac"}, Pos: 0},
+		{Song: mpd.Song{Title: "Beta", File: "b.flac"}, Pos: 1},
+		{Song: mpd.Song{Title: "Gamma", File: "c.flac"}, Pos: 2},
+	}
+	m := newTestModel()
+	updated, _ := m.Update(mpd.MsgPlayerState{
+		Status:  "play",
+		Song:    mpd.Song{Title: "Beta", File: "b.flac"},
+		SongPos: 1,
+	})
+	m = updated.(Model)
+	updated, _ = m.Update(mpd.MsgPlaylistChanged{Entries: entries})
+	m = updated.(Model)
+
+	// Simulate: Beta is removed; playlist now has Alpha and Gamma.
+	// MPD advances to what was pos 2 (Gamma), now at pos 1.
+	reducedEntries := []mpd.PlaylistEntry{
+		{Song: mpd.Song{Title: "Alpha", File: "a.flac"}, Pos: 0},
+		{Song: mpd.Song{Title: "Gamma", File: "c.flac"}, Pos: 1},
+	}
+	updated, _ = m.Update(mpd.MsgPlaylistChanged{Entries: reducedEntries})
+	m = updated.(Model)
+	updated, _ = m.Update(mpd.MsgPlayerState{
+		Status:  "play",
+		Song:    mpd.Song{Title: "Gamma", File: "c.flac"},
+		SongPos: 1,
+	})
+	m = updated.(Model)
+
+	if m.currentSongPos != 1 {
+		t.Errorf("currentSongPos = %d, want 1 after MPD advanced past removed song", m.currentSongPos)
+	}
+	if m.playlist.currentPos != 1 {
+		t.Errorf("playlist.currentPos = %d, want 1", m.playlist.currentPos)
+	}
+	if len(m.playlist.entries) != 2 {
+		t.Errorf("playlist.entries len = %d, want 2", len(m.playlist.entries))
+	}
+	if m.playlist.entries[1].Title != "Gamma" {
+		t.Errorf("entries[1].Title = %q, want Gamma", m.playlist.entries[1].Title)
+	}
 }

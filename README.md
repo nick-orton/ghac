@@ -1,4 +1,4 @@
-# ghac — Go Home Audio Controller
+# ghac — Great Home Audio Controller
 
 A keyboard-driven terminal user interface for controlling a multi-room
 home audio system. ghac integrates two backend services:
