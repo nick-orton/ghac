@@ -164,6 +164,10 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 					s.selected[s.cursor] = true
 				}
 			}
+		case "ctrl+j":
+			s = s.moveSong(1)
+		case "ctrl+k":
+			s = s.moveSong(-1)
 		case "x":
 			s = s.removeSongs()
 		case "X":
@@ -231,6 +235,37 @@ func (s playlistScreen) removeSongs() playlistScreen {
 	}
 
 	return s.clampOffset()
+}
+
+// moveSong moves the song under the cursor by delta positions (+1 = down,
+// -1 = up). The cursor follows the moved song. No-op at list boundaries.
+func (s playlistScreen) moveSong(delta int) playlistScreen {
+	if len(s.entries) == 0 {
+		return s
+	}
+	target := s.cursor + delta
+	if target < 0 || target >= len(s.entries) {
+		return s
+	}
+
+	// Copy slice to avoid aliasing.
+	entries := make([]mpd.PlaylistEntry, len(s.entries))
+	copy(entries, s.entries)
+	entries[s.cursor], entries[target] = entries[target], entries[s.cursor]
+	s.entries = entries
+
+	// Keep currentPos consistent with the swap.
+	if s.currentPos == s.cursor {
+		s.currentPos = target
+	} else if s.currentPos == target {
+		s.currentPos = s.cursor
+	}
+
+	if s.mc != nil {
+		_ = s.mc.Move(s.cursor, target)
+	}
+	s.cursor = target
+	return s
 }
 
 // jumpToLetter moves the cursor to the next entry (wrapping around) whose

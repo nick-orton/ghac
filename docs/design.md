@@ -172,6 +172,8 @@ can move freely after selecting songs.
 | `G`          | Move cursor to the last song                   |
 | `Ctrl-D`     | Move cursor down half a page                   |
 | `Ctrl-U`     | Move cursor up half a page                     |
+| `Ctrl-J`     | Move song under cursor down one position       |
+| `Ctrl-K`     | Move song under cursor up one position         |
 | `f <letter>` | Jump to next song starting with letter (wraps) |
 | `space`      | Toggle selection on the song under cursor      |
 | `x`          | Remove selected song(s) from the playlist      |

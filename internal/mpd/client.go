@@ -107,6 +107,11 @@ func (c *Client) Clear() error {
 	return c.cmd.Clear()
 }
 
+// Move moves the song at position from to position to in the playlist.
+func (c *Client) Move(from, to int) error {
+	return c.cmd.Move(from, -1, to)
+}
+
 // ListInfo lists the contents of the directory at path. Use an empty string
 // for the root of the music library. Playlist entries in the response are
 // skipped. Note: gompd's ListInfo lowercases all attribute keys.

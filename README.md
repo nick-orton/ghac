@@ -80,15 +80,16 @@ client.
 **Playlist Control (2)** — View and manage the MPD playback queue.
 
 | Key          | Action                                    |
-| ------------ | ----------------------------------------- |
-| `j/k`        | Move cursor down / up                     |
-| `gg/G`       | Move cursor to top / bottom               |
-| `Ctrl-D/U`   | Move cursor down / up half a page         |
-| `f <letter>` | Jump to first entry starting with letter  |
-| `space`      | Toggle selection on song under cursor     |
-| `x`          | Remove selected song(s) or song at cursor |
-| `X`          | Clear the entire playlist                 |
-| `enter`      | Start playing the song under cursor       |
+| ---------------- | ----------------------------------------- |
+| `j/k`            | Move cursor down / up                     |
+| `gg/G`           | Move cursor to top / bottom               |
+| `f <letter>`     | Jump to first entry starting with letter  |
+| `Ctrl-D/U`       | Move cursor down / up half a page         |
+| `Ctrl-J/Ctrl-K`  | Move song under cursor down / up          |
+| `space`          | Toggle selection on song under cursor     |
+| `x`              | Remove selected song(s) or song at cursor |
+| `X`              | Clear the entire playlist                 |
+| `enter`          | Start playing the song under cursor       |
 
 **Library Navigator (3)** — Browse the MPD music library by directory.
 

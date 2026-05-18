@@ -47,6 +47,7 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("j / k", "Move cursor down / up"))
 	b.WriteString(helpRow("gg / G", "Move cursor to top / bottom"))
 	b.WriteString(helpRow("f <letter>", "Jump to next entry starting with letter"))
+	b.WriteString(helpRow("Ctrl-J / Ctrl-K", "Move song under cursor down / up"))
 	b.WriteString(helpRow("space", "Toggle selection on song under cursor"))
 	b.WriteString(helpRow("x", "Remove selected song(s) (or cursor song if none selected)"))
 	b.WriteString(helpRow("X", "Clear the entire playlist"))
