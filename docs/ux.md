@@ -7,8 +7,11 @@ components, or styling changes.
 ## 1. Color Palette
 
 ghac uses 256-color terminal codes via lipgloss. The canonical values
-are defined in `internal/ui/styles.go` and must not be duplicated
-elsewhere — reference the style variables directly.
+are defined in `internal/ui/styles.go` as package-level `var` declarations
+and must not be duplicated elsewhere — reference the style variables
+directly. At runtime, `applyTheme()` in `theme.go` reassigns the
+color-bearing vars to match the active theme; the values below are for
+the built-in `default` theme.
 
 | Role               | Color code | Style variable              | Usage                                  |
 | ------------------ | ---------- | --------------------------- | -------------------------------------- |

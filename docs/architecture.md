@@ -61,7 +61,10 @@ ghac/
 │   └── ui/
 │       ├── model.go           # Root model, screen routing, screen border
 │       ├── nowplaying.go      # Now-playing bar component
-│       ├── styles.go          # Shared lipgloss styles
+│       ├── styles.go          # Shared lipgloss styles (color vars, reassigned by applyTheme)
+│       ├── theme.go           # Theme type, applyTheme, XDG state I/O; embeds themes.toml
+│       ├── themes.toml        # Built-in theme definitions (embedded at build time)
+│       ├── thememodal.go      # Theme selector modal screen
 │       ├── volume.go          # Player Volume screen (SnapCast clients)
 │       ├── playlist.go        # Playlist Control screen
 │       ├── navigator.go       # Library Navigator screen (library browser)
@@ -223,6 +226,34 @@ a rendered string. It is called once by `Model.View()` to
 compose the top bar; individual screen `View()` methods do not
 call it.
 
+### 6.4 Theme System
+
+Themes come from two sources:
+
+1. **Built-in** — `internal/ui/themes.toml` is embedded at build time via
+   `//go:embed` and parsed by `init()` into `Themes []Theme`.
+2. **User-defined** — `[[themes]]` blocks in `.ghacrc` are loaded by
+   `config.Load()` as `[]ThemeConfig`, converted to `[]ui.Theme` in
+   `main.go`, and appended via `ui.AppendThemes()` before theme
+   resolution. User themes appear after built-ins in the selector.
+
+An unnamed user theme block is skipped with a stderr warning.
+
+`applyTheme(t Theme)` reassigns the color-bearing style variables
+in `styles.go` (e.g., `styleNowPlaying`, `styleProgressFill`)
+to match the chosen theme. Because all UI rendering executes on
+the single Bubble Tea goroutine, this reassignment is safe with
+no locking required.
+
+The theme selector is a modal overlay (`themeScreen` in
+`thememodal.go`) using the same `placeOverlay()` mechanism as
+the help modal. Cursor movement triggers `applyTheme()` immediately
+for live preview. The root model handles `Enter` (confirm + save)
+and `Esc` / `t` (revert to original). Theme state is persisted to
+`$XDG_STATE_HOME/ghac/theme`. The active theme is also selectable
+via the `theme` config field or the `--theme` CLI flag; the flag
+takes highest priority.
+
 ## 7. Backend Client Design
 
 ### 7.1 MPD Client (`internal/mpd/`)
@@ -314,6 +345,11 @@ in the package that owns them.
   renders only the error and `Update()` quits.
 - `showHelp bool` — when true, `View()` composites the help
   modal over the active screen using `placeOverlay()`.
+- `showTheme bool` — when true, `View()` composites the theme
+  selector modal. Mutually exclusive with `showHelp`.
+- `activeThemeIdx`, `originalThemeIdx` — current and pre-open
+  theme indices used for live preview and revert on cancel.
+- `themeModal themeScreen` — the theme selector sub-model.
 - Sub-models for each screen (`volume`, `playlist`,
   `navigator`, `help`).
 - Pointers to the MPD and SnapCast clients.
@@ -394,8 +430,21 @@ browsing and enqueue commands.
 
 ```go
 type Config struct {
-    SnapServer ServerConfig `toml:"snapserver"`
-    MPD        ServerConfig `toml:"mpd"`
+    SnapServer ServerConfig  `toml:"snapserver"`
+    MPD        ServerConfig  `toml:"mpd"`
+    Theme      string        `toml:"theme"`  // optional; selects a theme by name
+    Themes     []ThemeConfig `toml:"themes"` // optional; user-defined themes
+}
+
+type ThemeConfig struct {
+    Name          string `toml:"name"`
+    BarBG         string `toml:"bar_bg"`
+    BarFG         string `toml:"bar_fg"`
+    Accent        string `toml:"accent"`
+    ProgressEmpty string `toml:"progress_empty"`
+    Secondary     string `toml:"secondary"`
+    VolumeUnmuted string `toml:"volume_unmuted"`
+    VolumeMuted   string `toml:"volume_muted"`
 }
 
 type ServerConfig struct {
@@ -480,7 +529,6 @@ but inform architectural choices:
 
 - Additional MPD features (search, random mode, repeat).
 - Configurable keybindings.
-- Theme/color configuration.
 - Mouse support.
 
 The screen interface and message-passing architecture

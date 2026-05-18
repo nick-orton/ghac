@@ -28,9 +28,10 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("2", "Switch to Playlist Control screen"))
 	b.WriteString(helpRow("3", "Switch to Library Navigator screen"))
 	b.WriteString(helpRow("?", "Open help screen"))
+	b.WriteString(helpRow("ctrl+t", "Open theme selector"))
 	b.WriteString(helpRow("p", "Toggle play / pause"))
 	b.WriteString(helpRow("q / Ctrl-C", "Quit"))
-	b.WriteString(helpRow("Esc", "Return to previous screen (from help)"))
+	b.WriteString(helpRow("Esc", "Close modal / return to screen"))
 	b.WriteString("\n")
 
 	b.WriteString(styleHelpSection.Render("Player Volume"))
