@@ -83,6 +83,7 @@ client.
 | ------------ | ----------------------------------------- |
 | `j/k`        | Move cursor down / up                     |
 | `gg/G`       | Move cursor to top / bottom               |
+| `Ctrl-D/U`   | Move cursor down / up half a page         |
 | `f <letter>` | Jump to first entry starting with letter  |
 | `space`      | Toggle selection on song under cursor     |
 | `x`          | Remove selected song(s) or song at cursor |
