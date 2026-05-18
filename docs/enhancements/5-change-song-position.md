@@ -1,5 +1,3 @@
-# Enhancements
-
 ## Change Song Position (`Ctrl+J` / `Ctrl+K`)
 
 [issue #5](https://github.com/nick-orton/ghac/issues/5)
