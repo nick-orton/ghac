@@ -74,13 +74,14 @@ or invalid it prints an error to stderr and exits with a non-zero status.
 **Player Volume (1)** — Adjust volume and mute state for each SnapCast
 client.
 
-| Key   | Action                                  |
-| ----- | --------------------------------------- |
-| `j/k` | Move cursor down / up                   |
-| `h/l` | Decrease / increase focused volume 5%   |
-| `m`   | Toggle mute on focused client           |
-| `H/L` | Decrease / increase all volumes by 5%   |
-| `M`   | Toggle mute on all clients              |
+| Key      | Action                                  |
+| -------- | --------------------------------------- |
+| `j/k`    | Move cursor down / up                   |
+| `h/l`    | Decrease / increase focused volume 5%   |
+| `m`      | Toggle mute on focused client           |
+| `H/L`    | Decrease / increase all volumes by 5%   |
+| `M`      | Toggle mute on all clients              |
+| `Ctrl-R` | Rename focused client                   |
 
 **Playlist Control (2)** — View and manage the MPD playback queue.
 

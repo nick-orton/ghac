@@ -240,6 +240,19 @@ func (c *Client) SetMute(clientID string, muted bool, currentVol int) error {
 	return c.SetVolume(clientID, currentVol, muted)
 }
 
+// setNameParams is the JSON parameter structure for Client.SetName.
+type setNameParams struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// SetName sets the display name for a SnapCast client.
+func (c *Client) SetName(clientID, name string) error {
+	p := setNameParams{ID: clientID, Name: name}
+	_, err := c.call("Client.SetName", p)
+	return err
+}
+
 // ListenNotifications returns a tea.Cmd that blocks until the next SnapCast
 // server notification arrives, fetches the updated server status, and returns
 // a MsgClientsUpdated (or MsgError on failure). Call the returned Cmd again

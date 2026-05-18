@@ -132,19 +132,42 @@ The row under the cursor is highlighted bold to indicate focus.
 
 **Player Volume keybindings:**
 
-| Key | Action                                  |
-| --- | --------------------------------------- |
-| `j` | Move cursor down one client             |
-| `k` | Move cursor up one client               |
-| `h` | Decrease volume of focused client by 5% |
-| `l` | Increase volume of focused client by 5% |
-| `m` | Toggle mute on focused client           |
-| `H` | Decrease volume of all clients by 5%    |
-| `L` | Increase volume of all clients by 5%    |
-| `M` | Toggle mute on all clients              |
+| Key      | Action                                  |
+| -------- | --------------------------------------- |
+| `j`      | Move cursor down one client             |
+| `k`      | Move cursor up one client               |
+| `h`      | Decrease volume of focused client by 5% |
+| `l`      | Increase volume of focused client by 5% |
+| `m`      | Toggle mute on focused client           |
+| `H`      | Decrease volume of all clients by 5%    |
+| `L`      | Increase volume of all clients by 5%    |
+| `M`      | Toggle mute on all clients              |
+| `Ctrl-R` | Open rename modal for focused client    |
 
 Volume values clamp to the 0–100 range. A decrease below 0
 stays at 0; an increase above 100 stays at 100.
+
+**Rename behavior (`Ctrl-R`):**
+
+`Ctrl-R` opens a "Rename Client" modal centered over the
+Player Volume screen. The text field is pre-filled with the
+focused client's current name and the cursor is placed at the
+end. Standard text-editing keys are supported: printable
+characters insert at the cursor, Space inserts a space,
+Backspace removes the character before the cursor, Delete
+removes the character at the cursor, Left/Right arrows move
+the cursor, Home/Ctrl-A moves to the start, and End/Ctrl-E
+moves to the end.
+
+`Ctrl-S` saves the new name (non-empty only) and closes the
+modal; `Esc` cancels without saving. A hint line at the
+bottom of the modal reads `Ctrl-S: save   Esc: cancel`. While
+the modal is open, all other keys (volume, mute, navigation,
+global screen-switch) are swallowed. `Ctrl-R` is a no-op when
+no clients are connected. The local client list updates
+immediately on save; the SnapCast server's broadcast
+notification refreshes the display via the existing
+`MsgClientsUpdated` path.
 
 Volume and mute changes made by other controllers (other ghac
 instances, SnapCast's own web UI, etc.) are reflected in the

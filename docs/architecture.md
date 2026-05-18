@@ -200,9 +200,13 @@ The root model's `Update` method handles:
 4. `MsgTick` — increments elapsed time by 1 second when playing,
    re-subscribes to tick.
 5. `mpd.MsgError` / `snapcast.MsgError` — stores error and quits.
-6. `tea.KeyMsg` — handles global keys (screen switching,
-   play/pause, quit) and delegates remaining keys to the active
-   screen's sub-model via `delegateToActiveScreen()`.
+6. `tea.KeyMsg` — checks `volume.showRename` first; when true,
+   keys are delegated directly to the volume screen without
+   processing global bindings (same guard pattern as
+   `showHelp`). Otherwise handles global keys (screen
+   switching, play/pause, quit) and delegates remaining keys to
+   the active screen's sub-model via
+   `delegateToActiveScreen()`.
 
 ### 6.2 Screen Sub-Models
 
@@ -304,10 +308,12 @@ A custom client implementing SnapCast's JSON-RPC over TCP:
 
 1. **Command interface** — `GetServerStatus()`,
    `SetVolume(clientID, vol, muted)`, `SetMute(clientID,
-   muted, currentVol)` that send JSON-RPC requests and block
-   until the response arrives (5-second timeout). Because the
-   SnapCast protocol encodes volume and muted state in a single
-   field, both values are always supplied together.
+   muted, currentVol)`, `SetName(clientID, name)` that send
+   JSON-RPC requests and block until the response arrives
+   (5-second timeout). Because the SnapCast protocol encodes
+   volume and muted state in a single field, both values are
+   always supplied together. `SetName` sends the
+   `Client.SetName` RPC to rename a SnapCast client.
 
 2. **Reader goroutine** (`readLoop`) — a persistent goroutine
    started by `Connect()` that reads the TCP stream, decodes
@@ -391,9 +397,15 @@ type SnapClient struct {
 ```
 
 **Volume screen** (`volumeScreen`) owns `[]SnapClient` and a
-cursor index. Updates when `MsgClientsUpdated` arrives via
-`withClients()`. Holds a pointer to the SnapCast client for
-issuing volume/mute commands.
+cursor index. It also owns three fields for the rename modal:
+`showRename bool` (whether the modal is open), `renameInput
+[]rune` (the editable name buffer), and `renameCursor int`
+(the cursor position within the buffer). When `showRename` is
+true, `volumeScreen.Update()` handles only text-editing keys,
+`Ctrl-S` (save), and `Esc` (cancel). Updates when
+`MsgClientsUpdated` arrives via `withClients()`. Holds a
+pointer to the SnapCast client for issuing volume/mute/rename
+commands.
 
 **Playlist screen** (`playlistScreen`) owns `[]PlaylistEntry`,
 a cursor index, a viewport `offset` (index of the first visible

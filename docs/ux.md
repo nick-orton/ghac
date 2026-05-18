@@ -149,6 +149,40 @@ Each client row follows this layout:
 - Mute indicator: `[M]` when muted, 3 spaces otherwise.
 - Cursor row is styled with `styleRowActive` (bold).
 
+### 6.1 Rename Modal
+
+Pressing `Ctrl-R` opens a rename modal centered over the Player
+Volume screen. The modal is composited via `placeOverlay()` /
+`modalBorder()` in `model.go`, the same infrastructure used by the
+help modal.
+
+**Modal sizing:**
+- Width: `min(50, terminalWidth − 4)`, with a floor of 30.
+- Height: sized to content (name field + hint line) plus 2 border
+  lines.
+- Position: centered horizontally and vertically.
+
+**Layout:**
+
+```text
+┌─ Rename Client ──────────────────┐
+│                                  │
+│  Name: ClientName_               │
+│                                  │
+│  Ctrl-S: save   Esc: cancel      │
+└──────────────────────────────────┘
+```
+
+- The `Name:` label is followed by the current input buffer. A `_`
+  character is rendered at the cursor position to indicate the
+  insertion point.
+- The hint line uses `styleHelpDesc` (faint) to keep it visually
+  subordinate to the input field.
+
+**Interaction:** while the modal is open, all keys other than
+text-editing, `Ctrl-S`, and `Esc` are swallowed. `Ctrl-R` is a
+no-op when no clients are connected.
+
 ## 7. Playlist Control Screen
 
 Each song row follows this prefix layout (5 characters):
@@ -295,7 +329,8 @@ Current width: 12 characters (see `helpRow()`).
 
 When adding a new keybinding, add it to the correct section in
 `help.go` and keep the sections sorted by screen (global first, then
-per-screen in tab order).
+per-screen in tab order). The Player Volume section includes
+`Ctrl-R` for the rename modal.
 
 **Tab strip:** `?:Help` remains in the tab strip as a permanent
 keybinding hint but is never rendered as active. Help is a modal

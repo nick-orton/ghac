@@ -42,6 +42,7 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("m", "Toggle mute on focused client"))
 	b.WriteString(helpRow("H / L", "Decrease / increase all clients volume by 5%"))
 	b.WriteString(helpRow("M", "Toggle mute on all clients"))
+	b.WriteString(helpRow("Ctrl-R", "Rename focused client"))
 	b.WriteString("\n")
 
 	b.WriteString(styleHelpSection.Render("Playlist Control"))
