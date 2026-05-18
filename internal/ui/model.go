@@ -248,81 +248,50 @@ func (m Model) View() string {
 	}
 
 	if mTitle, mContent, minW, maxW, ok := m.screens[m.activeScreen].activeModal(); ok {
-		modalWidth := m.width - 4
-		if modalWidth > maxW {
-			modalWidth = maxW
-		}
-		if modalWidth < minW {
-			modalWidth = minW
-		}
-		modal := modalBorder(mTitle, mContent, modalWidth)
-		modalLines := strings.Count(modal, "\n") + 1
-		x := (m.width - modalWidth) / 2
-		y := (m.height - modalLines) / 2
-		if x < 0 {
-			x = 0
-		}
-		if y < 0 {
-			y = 0
-		}
-		return placeOverlay(x, y, modal, background)
+		return m.overlayModal(mTitle, mContent, minW, maxW, background)
 	}
 
 	if m.showTheme {
-		// Modal width must fit the longest theme name (with cursor prefix)
-		// and the hint line at the bottom.
+		// Natural width: wide enough for the longest theme name and the hint line.
 		const hintLine = "  [enter] confirm  [esc] cancel"
-		modalWidth := len(hintLine)
+		naturalW := len(hintLine) + 4 // +4 for border sides and inner padding
 		for _, t := range Themes {
-			if w := 2 + len(t.Name); w > modalWidth { // 2 for "▶ " prefix
-				modalWidth = w
+			if w := 2 + len(t.Name) + 4; w > naturalW { // 2 for "▶ " prefix
+				naturalW = w
 			}
 		}
-		modalWidth += 4 // border sides (2) + inner padding (2)
-		if m.width-4 < modalWidth {
-			modalWidth = m.width - 4
-		}
-		if modalWidth < 20 {
-			modalWidth = 20
-		}
-		modal := modalBorder("Theme", m.themeModal.View(), modalWidth)
-		modalLines := strings.Count(modal, "\n") + 1
-		x := (m.width - modalWidth) / 2
-		y := (m.height - modalLines) / 2
-		if x < 0 {
-			x = 0
-		}
-		if y < 0 {
-			y = 0
-		}
-		return placeOverlay(x, y, modal, background)
+		return m.overlayModal("Theme", m.themeModal.View(), 20, naturalW, background)
 	}
 
-	if !m.showHelp {
-		return background
+	if m.showHelp {
+		return m.overlayModal("Help", m.help.View(), 20, 82, background)
 	}
 
-	// Render the help modal and overlay it centered on the background.
-	modalWidth := m.width - 4
-	if modalWidth > 82 {
-		modalWidth = 82
-	}
-	if modalWidth < 20 {
-		modalWidth = 20
-	}
-	modal := modalBorder("Help", m.help.View(), modalWidth)
+	return background
+}
 
-	modalLines := strings.Count(modal, "\n") + 1
-	x := (m.width - modalWidth) / 2
-	y := (m.height - modalLines) / 2
+// overlayModal builds a bordered modal and composites it centered over bg.
+// The modal width is clamped to [minW, maxW] and further bounded by the
+// terminal width minus 4 columns of margin.
+func (m Model) overlayModal(title, content string, minW, maxW int, bg string) string {
+	w := m.width - 4
+	if w > maxW {
+		w = maxW
+	}
+	if w < minW {
+		w = minW
+	}
+	modal := modalBorder(title, content, w)
+	lines := strings.Count(modal, "\n") + 1
+	x := (m.width - w) / 2
+	y := (m.height - lines) / 2
 	if x < 0 {
 		x = 0
 	}
 	if y < 0 {
 		y = 0
 	}
-
-	return placeOverlay(x, y, modal, background)
+	return placeOverlay(x, y, modal, bg)
 }
 
 // placeOverlay composites fg over bg, positioning the top-left corner of fg
