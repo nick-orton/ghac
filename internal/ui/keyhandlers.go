@@ -32,10 +32,10 @@ func handleQuit(m Model, msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// handleRenameModal delegates all keys to the active screen while the rename
-// modal is open. The volume screen owns rename input handling.
+// handleRenameModal delegates all keys to the active screen while it has
+// captured input (e.g. the volume screen's rename modal is open).
 func handleRenameModal(m Model, msg tea.KeyMsg) (Model, tea.Cmd, bool) {
-	if !m.volume.showRename {
+	if !m.screens[m.activeScreen].capturesAllInput() {
 		return m, nil, false
 	}
 	newM, cmd := m.delegateToActiveScreen(msg)

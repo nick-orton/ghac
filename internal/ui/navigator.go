@@ -440,3 +440,12 @@ func navBase(path string) string {
 	}
 	return path
 }
+
+// screen interface implementation.
+
+func (s navigatorScreen) update(msg tea.Msg) (screen, tea.Cmd)                              { return s.Update(msg) }
+func (s navigatorScreen) hasPendingF() bool                                                  { return s.pendingF }
+func (s navigatorScreen) capturesAllInput() bool                                             { return false }
+func (s navigatorScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) { return }
+func (s navigatorScreen) tabTitle() string                                                   { return "3:Library" }
+func (s navigatorScreen) screenTitle() string                                                { return "Library Navigator" }

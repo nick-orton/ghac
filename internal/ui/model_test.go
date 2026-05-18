@@ -428,16 +428,17 @@ func TestRootModelPlayingSongRemovedThenStateAdvances(t *testing.T) {
 	})
 	m = updated.(Model)
 
+	pl := m.screens[screenPlaylist].(playlistScreen)
 	if m.currentSongPos != 1 {
 		t.Errorf("currentSongPos = %d, want 1 after MPD advanced past removed song", m.currentSongPos)
 	}
-	if m.playlist.currentPos != 1 {
-		t.Errorf("playlist.currentPos = %d, want 1", m.playlist.currentPos)
+	if pl.currentPos != 1 {
+		t.Errorf("playlist.currentPos = %d, want 1", pl.currentPos)
 	}
-	if len(m.playlist.entries) != 2 {
-		t.Errorf("playlist.entries len = %d, want 2", len(m.playlist.entries))
+	if len(pl.entries) != 2 {
+		t.Errorf("playlist.entries len = %d, want 2", len(pl.entries))
 	}
-	if m.playlist.entries[1].Title != "Gamma" {
-		t.Errorf("entries[1].Title = %q, want Gamma", m.playlist.entries[1].Title)
+	if pl.entries[1].Title != "Gamma" {
+		t.Errorf("entries[1].Title = %q, want Gamma", pl.entries[1].Title)
 	}
 }

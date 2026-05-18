@@ -12,7 +12,7 @@ import (
 	"ghac/internal/snapcast"
 )
 
-// screenID identifies which screen is currently active.
+// screenID identifies a screen by its index in Model.screens.
 type screenID int
 
 const (
@@ -20,6 +20,20 @@ const (
 	screenPlaylist
 	screenNavigator
 )
+
+// screen is implemented by every sub-screen. It lets the root model dispatch
+// messages, render tabs, and query screen state without a type switch.
+// Adding a new screen only requires implementing this interface and appending
+// the screen to the slice in New() — no other model.go changes needed.
+type screen interface {
+	update(tea.Msg) (screen, tea.Cmd)
+	View() string
+	hasPendingF() bool
+	capturesAllInput() bool
+	activeModal() (title, content string, minWidth, maxWidth int, ok bool)
+	tabTitle() string
+	screenTitle() string
+}
 
 // Model is the root Bubble Tea model. It owns all screen sub-models and
 // handles global key bindings (screen switching, play/pause, quit).
@@ -52,10 +66,9 @@ type Model struct {
 	// errMsg is set on fatal errors; View() shows it and Update() quits.
 	errMsg string
 
-	volume    volumeScreen
-	playlist  playlistScreen
-	navigator navigatorScreen
-	help      helpScreen
+	// screens holds the ordered sub-screens; activeScreen indexes into it.
+	screens []screen
+	help    helpScreen
 }
 
 // NewParams holds all dependencies and initial state for New(). Using a struct
@@ -89,10 +102,12 @@ func New(p NewParams) Model {
 		totalDuration:  p.MPDState.TotalDuration,
 		currentSongPos: p.MPDState.SongPos,
 		randomOn:       p.MPDState.Random,
-		volume:         newVolumeScreen(p.Snapcast, p.SnapClients),
-		playlist:       newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
-		navigator:      newNavigatorScreen(p.MPD, p.NavEntries).withPlaylist(p.Playlist),
-		help:           newHelpScreen(),
+		screens: []screen{
+			newVolumeScreen(p.Snapcast, p.SnapClients),
+			newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
+			newNavigatorScreen(p.MPD, p.NavEntries).withPlaylist(p.Playlist),
+		},
+		help: newHelpScreen(),
 	}
 }
 
@@ -115,8 +130,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.navigator = m.navigator.withWidth(msg.Width).withHeight(msg.Height)
-		m.playlist = m.playlist.withHeight(msg.Height)
+		m.screens[screenNavigator] = m.screens[screenNavigator].(navigatorScreen).withWidth(msg.Width).withHeight(msg.Height)
+		m.screens[screenPlaylist] = m.screens[screenPlaylist].(playlistScreen).withHeight(msg.Height)
 		return m, nil
 
 	case mpd.MsgPlayerState:
@@ -126,7 +141,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.totalDuration = msg.TotalDuration
 		m.currentSongPos = msg.SongPos
 		m.randomOn = msg.Random
-		m.playlist = m.playlist.withCurrentPos(msg.SongPos)
+		m.screens[screenPlaylist] = m.screens[screenPlaylist].(playlistScreen).withCurrentPos(msg.SongPos)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
@@ -134,8 +149,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case mpd.MsgPlaylistChanged:
-		m.playlist = m.playlist.withEntries(msg.Entries, m.currentSongPos)
-		m.navigator = m.navigator.withPlaylist(msg.Entries)
+		m.screens[screenPlaylist] = m.screens[screenPlaylist].(playlistScreen).withEntries(msg.Entries, m.currentSongPos)
+		m.screens[screenNavigator] = m.screens[screenNavigator].(navigatorScreen).withPlaylist(msg.Entries)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
@@ -153,7 +168,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case snapcast.MsgClientsUpdated:
-		m.volume = m.volume.withClients(msg.Clients)
+		m.screens[screenVolume] = m.screens[screenVolume].(volumeScreen).withClients(msg.Clients)
 		if m.snapClient != nil {
 			return m, m.snapClient.ListenNotifications()
 		}
@@ -177,26 +192,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // activeScreenPendingF reports whether the active screen is mid f<letter>
 // fast-navigation sequence and needs to consume the next key itself.
 func (m Model) activeScreenPendingF() bool {
-	switch m.activeScreen {
-	case screenPlaylist:
-		return m.playlist.pendingF
-	case screenNavigator:
-		return m.navigator.pendingF
-	}
-	return false
+	return m.screens[m.activeScreen].hasPendingF()
 }
 
 // delegateToActiveScreen forwards a message to the currently active screen.
 func (m Model) delegateToActiveScreen(msg tea.Msg) (Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch m.activeScreen {
-	case screenVolume:
-		m.volume, cmd = m.volume.Update(msg)
-	case screenPlaylist:
-		m.playlist, cmd = m.playlist.Update(msg)
-	case screenNavigator:
-		m.navigator, cmd = m.navigator.Update(msg)
-	}
+	s, cmd := m.screens[m.activeScreen].update(msg)
+	m.screens[m.activeScreen] = s
 	return m, cmd
 }
 
@@ -219,15 +221,8 @@ func (m Model) View() string {
 	}
 	np := NowPlayingView(ps, m.width)
 
-	var title, content string
-	switch m.activeScreen {
-	case screenVolume:
-		title, content = "Player Volume", m.volume.View()
-	case screenPlaylist:
-		title, content = "Playlist Control", m.playlist.View()
-	case screenNavigator:
-		title, content = "Library Navigator", m.navigator.View()
-	}
+	title := m.screens[m.activeScreen].screenTitle()
+	content := m.screens[m.activeScreen].View()
 
 	background := np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
 
@@ -242,16 +237,15 @@ func (m Model) View() string {
 		}
 	}
 
-	if m.volume.showRename {
-		// Render the rename modal and overlay it centered on the background.
+	if mTitle, mContent, minW, maxW, ok := m.screens[m.activeScreen].activeModal(); ok {
 		modalWidth := m.width - 4
-		if modalWidth > 50 {
-			modalWidth = 50
+		if modalWidth > maxW {
+			modalWidth = maxW
 		}
-		if modalWidth < 30 {
-			modalWidth = 30
+		if modalWidth < minW {
+			modalWidth = minW
 		}
-		modal := modalBorder("Rename Client", m.volume.renameModalContent(), modalWidth)
+		modal := modalBorder(mTitle, mContent, modalWidth)
 		modalLines := strings.Count(modal, "\n") + 1
 		x := (m.width - modalWidth) / 2
 		y := (m.height - modalLines) / 2
@@ -469,24 +463,15 @@ func modalBorder(title, content string, width int) string {
 // tabStripView renders the tab bar showing all screens with the active one
 // highlighted via bold+underline and inactive ones dimmed.
 func (m Model) tabStripView() string {
-	type tab struct {
-		id    screenID
-		label string
-	}
-	tabs := []tab{
-		{screenVolume, "1:Volume"},
-		{screenPlaylist, "2:Playlist"},
-		{screenNavigator, "3:Library"},
-	}
-	parts := make([]string, len(tabs)+1)
-	for i, t := range tabs {
-		if t.id == m.activeScreen {
-			parts[i] = styleTabActive.Render(t.label)
+	parts := make([]string, len(m.screens)+1)
+	for i, s := range m.screens {
+		if screenID(i) == m.activeScreen {
+			parts[i] = styleTabActive.Render(s.tabTitle())
 		} else {
-			parts[i] = styleTabInactive.Render(t.label)
+			parts[i] = styleTabInactive.Render(s.tabTitle())
 		}
 	}
 	// ?:Help is always inactive — help is a modal overlay, not a peer screen.
-	parts[len(tabs)] = styleTabInactive.Render("?:Help")
+	parts[len(m.screens)] = styleTabInactive.Render("?:Help")
 	return strings.Join(parts, "  ")
 }

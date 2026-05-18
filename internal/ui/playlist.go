@@ -351,3 +351,12 @@ func entryDisplayName(e mpd.PlaylistEntry) string {
 	}
 	return e.File
 }
+
+// screen interface implementation.
+
+func (s playlistScreen) update(msg tea.Msg) (screen, tea.Cmd)                              { return s.Update(msg) }
+func (s playlistScreen) hasPendingF() bool                                                  { return s.pendingF }
+func (s playlistScreen) capturesAllInput() bool                                             { return false }
+func (s playlistScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) { return }
+func (s playlistScreen) tabTitle() string                                                   { return "2:Playlist" }
+func (s playlistScreen) screenTitle() string                                                { return "Playlist Control" }
