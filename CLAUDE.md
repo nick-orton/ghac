@@ -19,8 +19,11 @@ When working on a GitHub issue, follow these steps in order:
 4. **Update docs** — revise `docs/design.md`, `docs/architecture.md`, and
    `docs/ux.md` to reflect the planned change
 5. **Implement** the change
-6. **Verify** — build the project and run tests
+6. **Verify** — build the project and run tests. Ask the @product-manager to
+   validate that the implementation matches the design.
 7. **Document** — update `README.md` with any new user-facing functionality
+
+Consult the @product-manager subagent for product design and planning.
 
 ### enhancements.md Template
 
