@@ -1,8 +1,8 @@
-## Change Song Position (`Ctrl+J` / `Ctrl+K`)
+# Change Song Position (`Ctrl+J` / `Ctrl+K`)
 
 [issue #5](https://github.com/nick-orton/ghac/issues/5)
 
-### Summary
+## Summary
 
 Allows the user to reorder songs in the MPD playback queue directly
 from the Playlist Control screen. Pressing `Ctrl+J` moves the song
@@ -12,7 +12,7 @@ continue moving the same song without re-navigating.
 
 ---
 
-### Scope
+## Scope
 
 | Screen             | In scope |
 | ------------------ | -------- |
@@ -23,7 +23,7 @@ continue moving the same song without re-navigating.
 
 ---
 
-### Behaviour Specification
+## Behaviour Specification
 
 1. The user presses `Ctrl+J` on a song in the Playlist Control screen.
 2. The song moves down one position in the playlist (swaps with the
@@ -42,7 +42,7 @@ continue moving the same song without re-navigating.
 
 ---
 
-### Design Decisions (confirmed)
+## Design Decisions (confirmed)
 
 1. **Cursor follows the moved song** — repeated presses continue
    moving the same song without requiring the user to re-navigate,

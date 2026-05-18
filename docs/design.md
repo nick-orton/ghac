@@ -164,19 +164,29 @@ can move freely after selecting songs.
 
 **Playlist Control keybindings:**
 
-| Key          | Action                                    |
-| ------------ | ----------------------------------------- |
-| `j`          | Move cursor down one song                 |
-| `k`          | Move cursor up one song                   |
-| `gg`         | Move cursor to the first song             |
-| `G`          | Move cursor to the last song              |
+| Key          | Action                                         |
+| ------------ | ---------------------------------------------- |
+| `j`          | Move cursor down one song                      |
+| `k`          | Move cursor up one song                        |
+| `gg`         | Move cursor to the first song                  |
+| `G`          | Move cursor to the last song                   |
+| `Ctrl-D`     | Move cursor down half a page                   |
+| `Ctrl-U`     | Move cursor up half a page                     |
+| `Ctrl-J`     | Move song under cursor down one position       |
+| `Ctrl-K`     | Move song under cursor up one position         |
 | `f <letter>` | Jump to next song starting with letter (wraps) |
-| `Ctrl-J`     | Move song under cursor down one position  |
-| `Ctrl-K`     | Move song under cursor up one position    |
-| `space`      | Toggle selection on the song under cursor  |
-| `x`          | Remove selected song(s) from the playlist |
-| `X`          | Clear the entire playlist                 |
-| `enter`      | Start playing the song under cursor       |
+| `space`      | Toggle selection on the song under cursor      |
+| `x`          | Remove selected song(s) from the playlist      |
+| `X`          | Clear the entire playlist                      |
+| `enter`      | Start playing the song under cursor            |
+
+**Viewport scrolling:**
+
+The playlist implements viewport scrolling. Only as many entries
+as fit on screen are rendered at once. The viewport offset
+adjusts automatically as the cursor moves so the cursor is
+always visible. `Ctrl-D` and `Ctrl-U` move the cursor by half
+the viewport height.
 
 **Fast-jump behavior (`f <letter>`):**
 
@@ -190,6 +200,8 @@ can move freely after selecting songs.
   does not move.
 - `f` followed by a non-letter key cancels the sequence with
   no action.
+- After a successful jump, the viewport scrolls so the cursor
+  remains visible.
 
 **Removal behavior:**
 
