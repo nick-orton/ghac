@@ -551,3 +551,44 @@ func TestPlaylistViewShowsCursorEntryWhenScrolled(t *testing.T) {
 		t.Error("view should not contain 'Track 00' after scrolling past it")
 	}
 }
+
+func TestPlaylistJumpToLetterKeepsCursorInViewport(t *testing.T) {
+	// Build entries where "Track 00".."Track 39" start with 't', entry 40 starts with 'z'.
+	entries := makePlaylistEntries(41)
+	entries[40] = mpd.PlaylistEntry{Song: mpd.Song{Title: "Zeta", File: "z.flac"}, Pos: 40}
+	s := newPlaylistScreen(nil, entries, -1).withHeight(16) // vh=10
+
+	// Jump with f+z; cursor should land on entry 40 and viewport must follow.
+	s = pressPlaylistKey(s, "f")
+	s = pressPlaylistKey(s, "z")
+
+	if s.cursor != 40 {
+		t.Fatalf("cursor = %d, want 40 after f+z", s.cursor)
+	}
+	vh := s.viewportHeight()
+	if s.cursor < s.offset || s.cursor >= s.offset+vh {
+		t.Errorf("cursor %d not in viewport [%d, %d) after f+z jump", s.cursor, s.offset, s.offset+vh)
+	}
+}
+
+func TestPlaylistRemoveManyKeepsCursorInViewport(t *testing.T) {
+	// 50 entries, cursor at bottom, then remove all but the last few.
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})    // cursor=49
+
+	// Select entries 0-39 and remove them.
+	for i := 0; i < 40; i++ {
+		s.selected[i] = true
+	}
+	s = pressPlaylistKey(s, "x")
+
+	vh := s.viewportHeight()
+	if s.cursor < s.offset || s.cursor >= s.offset+vh {
+		t.Errorf("cursor %d not in viewport [%d, %d) after bulk remove", s.cursor, s.offset, s.offset+vh)
+	}
+	// View must not be blank.
+	view := s.View()
+	if strings.TrimSpace(view) == "" {
+		t.Error("view should not be blank after bulk remove")
+	}
+}

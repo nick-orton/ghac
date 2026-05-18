@@ -230,7 +230,7 @@ func (s playlistScreen) removeSongs() playlistScreen {
 		s.cursor = len(s.entries) - 1
 	}
 
-	return s
+	return s.clampOffset()
 }
 
 // jumpToLetter moves the cursor to the next entry (wrapping around) whose
@@ -244,7 +244,7 @@ func (s playlistScreen) jumpToLetter(r rune) playlistScreen {
 		name := strings.ToLower(entryDisplayName(s.entries[idx]))
 		if len(name) > 0 && rune(name[0]) == r {
 			s.cursor = idx
-			return s
+			return s.clampOffset()
 		}
 	}
 	return s
