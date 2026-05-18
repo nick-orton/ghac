@@ -14,9 +14,12 @@ const volumeBarWidth = 20
 // volumeScreen is the Player Volume screen. It displays one row per SnapCast
 // client with real-time volume and mute controls.
 type volumeScreen struct {
-	clients []snapcast.SnapClient
-	cursor  int
-	sc      *snapcast.Client // may be nil in tests; commands become no-ops
+	clients      []snapcast.SnapClient
+	cursor       int
+	sc           *snapcast.Client // may be nil in tests; commands become no-ops
+	showRename   bool
+	renameInput  []rune
+	renameCursor int
 }
 
 func newVolumeScreen(sc *snapcast.Client, clients []snapcast.SnapClient) volumeScreen {
@@ -42,6 +45,9 @@ func (s volumeScreen) withClients(clients []snapcast.SnapClient) volumeScreen {
 func (s volumeScreen) Update(msg tea.Msg) (volumeScreen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if s.showRename {
+			return s.updateRename(msg)
+		}
 		switch msg.String() {
 		case "j":
 			if s.cursor < len(s.clients)-1 {
@@ -69,9 +75,88 @@ func (s volumeScreen) Update(msg tea.Msg) (volumeScreen, tea.Cmd) {
 			for i := range s.clients {
 				s = s.toggleMute(i)
 			}
+		case "ctrl+r":
+			if len(s.clients) > 0 {
+				s.showRename = true
+				s.renameInput = []rune(s.clients[s.cursor].Name)
+				s.renameCursor = len(s.renameInput)
+			}
 		}
 	}
 	return s, nil
+}
+
+// updateRename handles key events while the rename modal is open.
+func (s volumeScreen) updateRename(msg tea.KeyMsg) (volumeScreen, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		s.showRename = false
+		s.renameInput = nil
+		s.renameCursor = 0
+	case "ctrl+s":
+		if len(s.renameInput) > 0 {
+			newName := string(s.renameInput)
+			if s.sc != nil {
+				_ = s.sc.SetName(s.clients[s.cursor].ID, newName)
+			}
+			// Update local state immediately so the display reflects the
+			// change without waiting for the server notification.
+			clients := make([]snapcast.SnapClient, len(s.clients))
+			copy(clients, s.clients)
+			clients[s.cursor].Name = newName
+			s.clients = clients
+			s.showRename = false
+			s.renameInput = nil
+			s.renameCursor = 0
+		}
+	case "left":
+		if s.renameCursor > 0 {
+			s.renameCursor--
+		}
+	case "right":
+		if s.renameCursor < len(s.renameInput) {
+			s.renameCursor++
+		}
+	case "home", "ctrl+a":
+		s.renameCursor = 0
+	case "end", "ctrl+e":
+		s.renameCursor = len(s.renameInput)
+	case "backspace":
+		if s.renameCursor > 0 {
+			s.renameInput = append(s.renameInput[:s.renameCursor-1], s.renameInput[s.renameCursor:]...)
+			s.renameCursor--
+		}
+	case "delete":
+		if s.renameCursor < len(s.renameInput) {
+			s.renameInput = append(s.renameInput[:s.renameCursor], s.renameInput[s.renameCursor+1:]...)
+		}
+	default:
+		var runes []rune
+		switch msg.Type {
+		case tea.KeyRunes:
+			runes = msg.Runes
+		case tea.KeySpace:
+			runes = []rune{' '}
+		}
+		if len(runes) > 0 {
+			s.renameInput = append(s.renameInput[:s.renameCursor], append(runes, s.renameInput[s.renameCursor:]...)...)
+			s.renameCursor += len(runes)
+		}
+	}
+	return s, nil
+}
+
+// renameModalContent returns the inner content of the rename modal for
+// compositing by Model.View().
+func (s volumeScreen) renameModalContent() string {
+	var b strings.Builder
+	left := string(s.renameInput[:s.renameCursor])
+	right := string(s.renameInput[s.renameCursor:])
+	b.WriteString("\n")
+	b.WriteString("  Name: " + left + "_" + right + "\n")
+	b.WriteString("\n")
+	b.WriteString("  " + styleHelpDesc.Render("Ctrl-S: save   Esc: cancel") + "\n")
+	return b.String()
 }
 
 // adjustVolume changes the volume of client at index i by delta, clamping to
