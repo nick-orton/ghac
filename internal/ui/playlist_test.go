@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -27,6 +28,7 @@ func pressPlaylistKey(s playlistScreen, key string) playlistScreen {
 	updated, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
 	return updated
 }
+
 
 // --- Cursor movement ---
 
@@ -433,5 +435,119 @@ func TestEntryDisplayNameFilenameFallback(t *testing.T) {
 	got := entryDisplayName(e)
 	if got != "raw-file.mp3" {
 		t.Errorf("entryDisplayName = %q, want %q", got, "raw-file.mp3")
+	}
+}
+
+// --- Viewport / scrolling ---
+
+// makePlaylistEntries returns n playlist entries for viewport tests.
+func makePlaylistEntries(n int) []mpd.PlaylistEntry {
+	entries := make([]mpd.PlaylistEntry, n)
+	for i := range entries {
+		entries[i] = mpd.PlaylistEntry{
+			Song: mpd.Song{
+				Title: fmt.Sprintf("Track %02d", i),
+				File:  fmt.Sprintf("track%02d.flac", i),
+			},
+			Pos: i,
+		}
+	}
+	return entries
+}
+
+func TestPlaylistViewportHeightDefault(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1)
+	vh := s.viewportHeight()
+	if vh < 1 {
+		t.Errorf("viewportHeight() = %d, want >= 1 when height unset", vh)
+	}
+}
+
+func TestPlaylistViewportHeightUsesTerminalHeight(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(30)
+	// overhead is 6: viewportHeight should be 30 - 6 = 24
+	got := s.viewportHeight()
+	if got != 24 {
+		t.Errorf("viewportHeight() = %d, want 24 for terminal height 30", got)
+	}
+}
+
+func TestPlaylistCtrlDMovesHalfPage(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10, half=5
+	s = pressPlaylistKey(s, "ctrl+d")
+	if s.cursor != 5 {
+		t.Errorf("cursor = %d, want 5 after ctrl+d (half of vh=10)", s.cursor)
+	}
+}
+
+func TestPlaylistCtrlUMovesHalfPage(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10, half=5
+	for i := 0; i < 20; i++ {
+		s = pressPlaylistKey(s, "j")
+	}
+	s = pressPlaylistKey(s, "ctrl+u")
+	if s.cursor != 15 {
+		t.Errorf("cursor = %d, want 15 after ctrl+u from 20 (half=5)", s.cursor)
+	}
+}
+
+func TestPlaylistCtrlDClampsAtBottom(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(4), -1).withHeight(16) // 4 entries, vh=10
+	s = pressPlaylistKey(s, "ctrl+d")
+	if s.cursor != 3 {
+		t.Errorf("cursor = %d, want 3 (last entry) after ctrl+d on short list", s.cursor)
+	}
+}
+
+func TestPlaylistCtrlUClampsAtTop(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10, half=5
+	s = pressPlaylistKey(s, "j") // cursor=1
+	s = pressPlaylistKey(s, "ctrl+u")
+	if s.cursor != 0 {
+		t.Errorf("cursor = %d, want 0 after ctrl+u near top", s.cursor)
+	}
+}
+
+func TestPlaylistCtrlDKeepsCursorInViewport(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10
+	s = pressPlaylistKey(s, "ctrl+d")
+	vh := s.viewportHeight()
+	if s.cursor < s.offset || s.cursor >= s.offset+vh {
+		t.Errorf("cursor %d not in viewport [%d, %d) after ctrl+d", s.cursor, s.offset, s.offset+vh)
+	}
+}
+
+func TestPlaylistCtrlUKeepsCursorInViewport(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16)
+	for i := 0; i < 30; i++ {
+		s = pressPlaylistKey(s, "j")
+	}
+	s = pressPlaylistKey(s, "ctrl+u")
+	vh := s.viewportHeight()
+	if s.cursor < s.offset || s.cursor >= s.offset+vh {
+		t.Errorf("cursor %d not in viewport [%d, %d) after ctrl+u", s.cursor, s.offset, s.offset+vh)
+	}
+}
+
+func TestPlaylistViewRendersOnlyViewportRows(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10
+	view := s.View()
+	lines := strings.Split(strings.TrimRight(view, "\n"), "\n")
+	if len(lines) > 10 {
+		t.Errorf("view has %d lines, want at most 10 for viewportHeight=10", len(lines))
+	}
+}
+
+func TestPlaylistViewShowsCursorEntryWhenScrolled(t *testing.T) {
+	s := newPlaylistScreen(nil, makePlaylistEntries(50), -1).withHeight(16) // vh=10
+	for i := 0; i < 20; i++ {
+		s = pressPlaylistKey(s, "j")
+	}
+	view := s.View()
+	if !strings.Contains(view, "Track 20") {
+		t.Error("view should contain cursor entry 'Track 20' after scrolling")
+	}
+	if strings.Contains(view, "Track 00") {
+		t.Error("view should not contain 'Track 00' after scrolling past it")
 	}
 }

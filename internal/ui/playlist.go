@@ -15,10 +15,12 @@ import (
 type playlistScreen struct {
 	entries    []mpd.PlaylistEntry
 	cursor     int
+	offset     int         // index of the first visible entry (viewport top)
 	pendingG   bool        // true after a single 'g' press, waiting for 'gg'
 	pendingF   bool        // true after 'f' press, waiting for letter to jump to
 	selected   map[int]bool
 	currentPos int         // playlist position of currently-playing song; -1 if none
+	height     int         // terminal height for viewport sizing
 	mc         *mpd.Client // may be nil in tests; commands become no-ops
 }
 
@@ -43,12 +45,48 @@ func (s playlistScreen) withEntries(entries []mpd.PlaylistEntry, currentPos int)
 	} else if s.cursor >= len(entries) {
 		s.cursor = len(entries) - 1
 	}
-	return s
+	return s.clampOffset()
 }
 
 // withCurrentPos returns a copy with the current playing position updated.
 func (s playlistScreen) withCurrentPos(pos int) playlistScreen {
 	s.currentPos = pos
+	return s
+}
+
+// withHeight returns a copy with the terminal height updated and the viewport
+// offset re-clamped so the cursor remains visible.
+func (s playlistScreen) withHeight(h int) playlistScreen {
+	s.height = h
+	return s.clampOffset()
+}
+
+// viewportHeight returns the number of entry rows that fit on screen.
+// The overhead is: nowplaying(1) + sep(1) + tabstrip(1) + sep(1) +
+// border_top(1) + border_bottom(1) = 6 lines.
+func (s playlistScreen) viewportHeight() int {
+	if s.height < 10 {
+		return 24 // sensible default before the first WindowSizeMsg
+	}
+	h := s.height - 6
+	if h < 1 {
+		h = 1
+	}
+	return h
+}
+
+// clampOffset adjusts the viewport offset so the cursor is always visible.
+// Call this after any change to cursor, offset, or height.
+func (s playlistScreen) clampOffset() playlistScreen {
+	vh := s.viewportHeight()
+	if s.cursor < s.offset {
+		s.offset = s.cursor
+	} else if s.cursor >= s.offset+vh {
+		s.offset = s.cursor - vh + 1
+	}
+	if s.offset < 0 {
+		s.offset = 0
+	}
 	return s
 }
 
@@ -76,23 +114,42 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 		case "j":
 			if s.cursor < len(s.entries)-1 {
 				s.cursor++
+				s = s.clampOffset()
 			}
 		case "k":
 			if s.cursor > 0 {
 				s.cursor--
+				s = s.clampOffset()
 			}
 		case "G":
 			if len(s.entries) > 0 {
 				s.cursor = len(s.entries) - 1
+				s = s.clampOffset()
 			}
 		case "f":
 			s.pendingF = true
 		case "g":
 			if wasPendingG {
 				s.cursor = 0 // gg → top
+				s = s.clampOffset()
 			} else {
 				s.pendingG = true
 			}
+		case "ctrl+d":
+			s.cursor += s.viewportHeight() / 2
+			if s.cursor >= len(s.entries) {
+				s.cursor = len(s.entries) - 1
+			}
+			if s.cursor < 0 {
+				s.cursor = 0
+			}
+			s = s.clampOffset()
+		case "ctrl+u":
+			s.cursor -= s.viewportHeight() / 2
+			if s.cursor < 0 {
+				s.cursor = 0
+			}
+			s = s.clampOffset()
 		case " ":
 			if s.cursor < len(s.entries) {
 				// Copy the map so mutation doesn't alias the caller's copy.
@@ -198,9 +255,15 @@ func (s playlistScreen) View() string {
 		return stylePlaceholder.Render("Playlist is empty")
 	}
 
+	vh := s.viewportHeight()
+	end := s.offset + vh
+	if end > len(s.entries) {
+		end = len(s.entries)
+	}
+
 	var b strings.Builder
-	for i, entry := range s.entries {
-		b.WriteString(s.renderRow(i, entry))
+	for i := s.offset; i < end; i++ {
+		b.WriteString(s.renderRow(i, s.entries[i]))
 		b.WriteString("\n")
 	}
 	return b.String()

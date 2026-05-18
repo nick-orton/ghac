@@ -101,6 +101,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.navigator = m.navigator.withWidth(msg.Width).withHeight(msg.Height)
+		m.playlist = m.playlist.withHeight(msg.Height)
 		return m, nil
 
 	case mpd.MsgPlayerState:
