@@ -171,8 +171,11 @@ No shared mutable state exists outside the model.
 
 The root model (`internal/ui/model.go`) owns:
 
-- The active screen identifier (a `screenID` enum/int).
-- The previous screen (for help-screen return).
+- The active screen identifier (a `screenID` enum/int; three
+  values: `screenVolume`, `screenPlaylist`, `screenNavigator`).
+- `showHelp bool` — when true, a help modal is composited over
+  the active screen via `placeOverlay()`. The active screen never
+  changes when help opens; `?` and `Esc` toggle this flag.
 - Terminal dimensions (`width`, `height`).
 - Sub-models for each screen (`volume`, `playlist`, `navigator`,
   `help`).
@@ -309,6 +312,8 @@ in the package that owns them.
 - Terminal dimensions (`width`, `height`).
 - `errMsg` — set on fatal errors; when non-empty, `View()`
   renders only the error and `Update()` quits.
+- `showHelp bool` — when true, `View()` composites the help
+  modal over the active screen using `placeOverlay()`.
 - Sub-models for each screen (`volume`, `playlist`,
   `navigator`, `help`).
 - Pointers to the MPD and SnapCast clients.

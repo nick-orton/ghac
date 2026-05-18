@@ -232,14 +232,26 @@ the entire row string.
 
 **Empty state:** `stylePlaceholder` renders "Directory is empty".
 
-## 9. Help Screen
+## 9. Help Modal
 
 Key bindings are displayed in `internal/ui/help.go` organized into
-named sections.
+named sections. Help appears as a centered modal overlay; the
+underlying screen remains visible around it.
 
-**Column alignment:** the key column is fixed-width (pad with spaces
-so descriptions align). Keep the key column width consistent across
-all sections. Current width: 12 characters (see `helpRow()`).
+**Modal sizing:**
+- Width: `min(82, terminalWidth − 4)` — wide enough for the longest
+  help row (12-char key column + 2 spaces + ~62-char description).
+- Height: sized to content plus 2 border lines.
+- Position: centered horizontally and vertically. Calculated as
+  `x = (width − modalWidth) / 2`, `y = (height − modalLines) / 2`.
+
+**Modal border:** rendered by `modalBorder()` in `model.go`. Uses the
+same box-drawing characters and title-in-top-edge style as
+`screenBorder()`. No new style variables are needed.
+
+**Content column alignment:** the key column is fixed-width (pad with
+spaces so descriptions align). Keep consistent across all sections.
+Current width: 12 characters (see `helpRow()`).
 
 **Styling:**
 - Section headers: `styleHelpSection` — bold + underline.
@@ -255,6 +267,10 @@ all sections. Current width: 12 characters (see `helpRow()`).
 When adding a new keybinding, add it to the correct section in
 `help.go` and keep the sections sorted by screen (global first, then
 per-screen in tab order).
+
+**Tab strip:** `?:Help` remains in the tab strip as a permanent
+keybinding hint but is never rendered as active. Help is a modal
+overlay, not a peer screen.
 
 ## 10. Typography Conventions
 
