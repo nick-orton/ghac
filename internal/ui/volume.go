@@ -44,6 +44,8 @@ func (s volumeScreen) withClients(clients []snapcast.SnapClient) volumeScreen {
 
 func (s volumeScreen) Update(msg tea.Msg) (volumeScreen, tea.Cmd) {
 	switch msg := msg.(type) {
+	case snapcast.MsgClientsUpdated:
+		return s.withClients(msg.Clients), nil
 	case tea.KeyMsg:
 		if s.showRename {
 			return s.updateRename(msg)

@@ -94,6 +94,10 @@ func (s navigatorScreen) clampOffset() navigatorScreen {
 
 func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return s.withWidth(msg.Width).withHeight(msg.Height), nil
+	case mpd.MsgPlaylistChanged:
+		return s.withPlaylist(msg.Entries), nil
 	case tea.KeyMsg:
 		// Capture and clear pending states before processing the key.
 		wasPendingG := s.pendingG

@@ -130,8 +130,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.screens[screenNavigator] = m.screens[screenNavigator].(navigatorScreen).withWidth(msg.Width).withHeight(msg.Height)
-		m.screens[screenPlaylist] = m.screens[screenPlaylist].(playlistScreen).withHeight(msg.Height)
+		m = m.broadcastToScreens(msg)
 		return m, nil
 
 	case mpd.MsgPlayerState:
@@ -141,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.totalDuration = msg.TotalDuration
 		m.currentSongPos = msg.SongPos
 		m.randomOn = msg.Random
-		m.screens[screenPlaylist] = m.screens[screenPlaylist].(playlistScreen).withCurrentPos(msg.SongPos)
+		m = m.broadcastToScreens(msg)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
@@ -149,8 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case mpd.MsgPlaylistChanged:
-		m.screens[screenPlaylist] = m.screens[screenPlaylist].(playlistScreen).withEntries(msg.Entries, m.currentSongPos)
-		m.screens[screenNavigator] = m.screens[screenNavigator].(navigatorScreen).withPlaylist(msg.Entries)
+		m = m.broadcastToScreens(msg)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
@@ -168,7 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case snapcast.MsgClientsUpdated:
-		m.screens[screenVolume] = m.screens[screenVolume].(volumeScreen).withClients(msg.Clients)
+		m = m.broadcastToScreens(msg)
 		if m.snapClient != nil {
 			return m, m.snapClient.ListenNotifications()
 		}
@@ -200,6 +198,18 @@ func (m Model) delegateToActiveScreen(msg tea.Msg) (Model, tea.Cmd) {
 	s, cmd := m.screens[m.activeScreen].update(msg)
 	m.screens[m.activeScreen] = s
 	return m, cmd
+}
+
+// broadcastToScreens delivers msg to every screen's update method. Commands
+// returned by screens are discarded — backend-subscription commands are owned
+// by the root model. Use this for backend messages that screens need to
+// observe in order to keep their own state current.
+func (m Model) broadcastToScreens(msg tea.Msg) Model {
+	for i, s := range m.screens {
+		newS, _ := s.update(msg)
+		m.screens[i] = newS
+	}
+	return m
 }
 
 // View renders the current screen with the now-playing bar at the top.

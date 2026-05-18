@@ -92,6 +92,12 @@ func (s playlistScreen) clampOffset() playlistScreen {
 
 func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return s.withHeight(msg.Height), nil
+	case mpd.MsgPlayerState:
+		return s.withCurrentPos(msg.SongPos), nil
+	case mpd.MsgPlaylistChanged:
+		return s.withEntries(msg.Entries, s.currentPos), nil
 	case tea.KeyMsg:
 		// Capture and clear pending states before processing the key.
 		wasPendingG := s.pendingG
