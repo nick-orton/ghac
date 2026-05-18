@@ -13,11 +13,15 @@ This file provides guidance to Claude Code when working with this repository.
 
 When working on a GitHub issue, follow these steps in order:
 
+0. **prepare** ensure that the code is up-to-date and we're working on a branch
+   - update main from origin
+   - create a branch from the issue using the 'gh dev {#Issue}' alias
 1. **Read** the issue and all existing documentation (`docs/*`)
 2. **Ask clarifying questions** before proceeding
 3. **Plan** — create a new file in `docs/enhancements/` using the template
    below. Name it `<issue#>-<short-slug>.md` (e.g.
    `docs/enhancements/12-volume-sync.md`).
+   - Allow the user to review and edit the enhancement file before proceeding.
 4. **Update docs** — revise `docs/design.md`, `docs/architecture.md`, and
    `docs/ux.md` to reflect the planned change
 5. **Implement** the change
