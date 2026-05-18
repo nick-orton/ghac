@@ -64,6 +64,7 @@ or invalid it prints an error to stderr and exits with a non-zero status.
 | `?`      | Toggle help overlay                 |
 | `ctrl+t` | Open theme selector                 |
 | `p`      | Toggle play / pause                 |
+| `z`      | Toggle random (shuffle) mode        |
 | `q`      | Quit                                |
 | `Ctrl-C` | Quit                                |
 | `Esc`    | Close modal (reverts theme if theme selector is open) |

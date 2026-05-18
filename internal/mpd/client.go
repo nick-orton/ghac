@@ -29,7 +29,7 @@ func Connect(addr string) (*Client, error) {
 		return nil, fmt.Errorf("mpd command connection: %w", err)
 	}
 
-	idle, err := gompd.NewWatcher("tcp", addr, "", "player", "playlist")
+	idle, err := gompd.NewWatcher("tcp", addr, "", "player", "playlist", "options")
 	if err != nil {
 		_ = cmd.Close()
 		return nil, fmt.Errorf("mpd idle connection: %w", err)
@@ -155,6 +155,11 @@ func (c *Client) Add(uri string) error {
 	return c.cmd.Add(uri)
 }
 
+// Random sets MPD's random (shuffle) mode on or off.
+func (c *Client) Random(on bool) error {
+	return c.cmd.Random(on)
+}
+
 // mpdBase returns the final path segment of an MPD URI, which always uses
 // forward slashes regardless of the operating system.
 func mpdBase(p string) string {
@@ -226,6 +231,7 @@ func (c *Client) queryPlayerState() (MsgPlayerState, error) {
 		Elapsed:       parseDuration(status["elapsed"]),
 		TotalDuration: parseDuration(status["duration"]),
 		SongPos:       songPos,
+		Random:        status["random"] == "1",
 	}, nil
 }
 

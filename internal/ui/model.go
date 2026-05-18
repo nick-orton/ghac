@@ -46,7 +46,8 @@ type Model struct {
 	currentSong    mpd.Song
 	elapsed        time.Duration
 	totalDuration  time.Duration
-	currentSongPos int // 0-indexed playlist position; -1 if none playing
+	currentSongPos int  // 0-indexed playlist position; -1 if none playing
+	randomOn       bool // true when MPD random (shuffle) mode is active
 
 	// errMsg is set on fatal errors; View() shows it and Update() quits.
 	errMsg string
@@ -87,6 +88,7 @@ func New(p NewParams) Model {
 		elapsed:        p.MPDState.Elapsed,
 		totalDuration:  p.MPDState.TotalDuration,
 		currentSongPos: p.MPDState.SongPos,
+		randomOn:       p.MPDState.Random,
 		volume:         newVolumeScreen(p.Snapcast, p.SnapClients),
 		playlist:       newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
 		navigator:      newNavigatorScreen(p.MPD, p.NavEntries).withPlaylist(p.Playlist),
@@ -123,6 +125,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.elapsed = msg.Elapsed
 		m.totalDuration = msg.TotalDuration
 		m.currentSongPos = msg.SongPos
+		m.randomOn = msg.Random
 		m.playlist = m.playlist.withCurrentPos(msg.SongPos)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
@@ -233,6 +236,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "z":
+			if m.mpdClient != nil {
+				_ = m.mpdClient.Random(!m.randomOn)
+			}
+			return m, nil
 		case "1":
 			m.activeScreen = screenVolume
 			return m, nil
@@ -289,6 +297,7 @@ func (m Model) View() string {
 		File:          m.currentSong.File,
 		Elapsed:       m.elapsed,
 		TotalDuration: m.totalDuration,
+		Random:        m.randomOn,
 	}
 	np := NowPlayingView(ps, m.width)
 

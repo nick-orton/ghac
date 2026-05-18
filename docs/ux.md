@@ -65,7 +65,8 @@ The bar spans the full terminal width and is rendered by
 `NowPlayingView()` in `internal/ui/nowplaying.go`.
 
 **Content order (left to right):**
-state icon → song name → progress bar → elapsed / total time
+random indicator (when on) → state icon → song name → progress
+bar → elapsed / total time
 
 **Styling:**
 
@@ -74,6 +75,12 @@ state icon → song name → progress bar → elapsed / total time
 - Nested styles inside the bar must be compatible with the dark
   background; avoid `Faint` (invisible on dark bg) and `Reverse`
   (double-inverts). Use explicit foreground colors instead.
+
+**Random indicator:**
+
+- When random mode is on: `[Z] ` (4 characters including
+  trailing space) prepended before the state icon.
+- When random mode is off: nothing — no space is reserved.
 
 **State icons:**
 

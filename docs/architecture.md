@@ -147,8 +147,8 @@ No shared mutable state exists outside the model.
 **From MPD (`internal/mpd/messages.go`):**
 
 - `MsgPlayerState` — play/pause/stop status, current song,
-  elapsed time, and current song's playlist position (`SongPos`;
-  -1 when nothing is playing).
+  elapsed time, current song's playlist position (`SongPos`;
+  -1 when nothing is playing), and random mode flag (`Random`).
 - `MsgPlaylistChanged` — the playlist was modified; carries the
   full updated `[]PlaylistEntry`.
 - `MsgTick` — periodic tick for progress bar updates (1-second
@@ -185,7 +185,7 @@ The root model (`internal/ui/model.go`) owns:
 - Pointers to the MPD and SnapCast clients (for issuing
   commands).
 - Shared player state: `playerStatus`, `currentSong`, `elapsed`,
-  `totalDuration`, `currentSongPos`.
+  `totalDuration`, `currentSongPos`, `randomOn`.
 - `errMsg` for fatal error display.
 
 The root model's `Update` method handles:
@@ -283,6 +283,8 @@ Wraps `gompd` and exposes two concerns:
      skipped.
    - `Add(uri)` — appends a song or directory (recursively) to
      the playback queue.
+   - `Random(on)` — enables or disables MPD's random (shuffle)
+     mode.
 
 2. **Idle listener** — a long-running goroutine that calls
    `gompd`'s `Watch` to block on MPD idle events. On each event
@@ -338,8 +340,8 @@ in the package that owns them.
 **Root model** (`internal/ui/Model`) owns:
 
 - Player state fields (`playerStatus`, `currentSong`,
-  `elapsed`, `totalDuration`, `currentSongPos`) — populated
-  from MPD messages.
+  `elapsed`, `totalDuration`, `currentSongPos`, `randomOn`) —
+  populated from MPD messages.
 - Terminal dimensions (`width`, `height`).
 - `errMsg` — set on fatal errors; when non-empty, `View()`
   renders only the error and `Update()` quits.

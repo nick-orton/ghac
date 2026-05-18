@@ -30,6 +30,7 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("?", "Open help screen"))
 	b.WriteString(helpRow("ctrl+t", "Open theme selector"))
 	b.WriteString(helpRow("p", "Toggle play / pause"))
+	b.WriteString(helpRow("z", "Toggle random (shuffle) mode"))
 	b.WriteString(helpRow("q / Ctrl-C", "Quit"))
 	b.WriteString(helpRow("Esc", "Close modal / return to screen"))
 	b.WriteString("\n")

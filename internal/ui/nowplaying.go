@@ -16,6 +16,7 @@ type PlayerState struct {
 	File          string // fallback when metadata absent
 	Elapsed       time.Duration
 	TotalDuration time.Duration
+	Random        bool // true when MPD random (shuffle) mode is active
 }
 
 // displayName returns the best available label for the current song.
@@ -45,8 +46,13 @@ func NowPlayingView(state PlayerState, width int) string {
 		width = 80
 	}
 
+	randomIndicator := ""
+	if state.Random {
+		randomIndicator = "[Z] "
+	}
+
 	if state.Status == "" || state.Status == "stop" || state.displayName() == "" {
-		placeholder := "[ No song playing ]"
+		placeholder := randomIndicator + "[ No song playing ]"
 		line := fmt.Sprintf("%-*s", width, placeholder)
 		return styleNowPlaying.Render(line)
 	}
@@ -61,11 +67,11 @@ func NowPlayingView(state PlayerState, width int) string {
 	// The styled version is used in the final rendered line.
 	timeRaw := formatTime(state.Elapsed) + " / " + formatTime(state.TotalDuration)
 	progressBarWidth := 20
-	// overhead: icon(1) + space(1) + bar(progressBarWidth) + space(1) + time
-	overhead := 1 + 1 + progressBarWidth + 1 + len(timeRaw)
+	// overhead: randomIndicator + icon(1) + space(1) + bar(progressBarWidth) + space(1) + time
+	overhead := len(randomIndicator) + 1 + 1 + progressBarWidth + 1 + len(timeRaw)
 	if overhead >= width {
-		// Terminal too narrow: show just name truncated.
-		line := fmt.Sprintf("%-*s", width, stateIcon+" "+name)
+		// Terminal too narrow: show just name truncated (with indicator if present).
+		line := fmt.Sprintf("%-*s", width, randomIndicator+stateIcon+" "+name)
 		return styleNowPlaying.Render(truncate(line, width))
 	}
 
@@ -76,7 +82,7 @@ func NowPlayingView(state PlayerState, width int) string {
 	bar := progressBar(state.Elapsed, state.TotalDuration, progressBarWidth)
 	styledTime := styleTime.Render(timeRaw)
 
-	line := stateIcon + " " + name + bar + " " + styledTime
+	line := randomIndicator + stateIcon + " " + name + bar + " " + styledTime
 	return styleNowPlaying.Render(line)
 }
 
