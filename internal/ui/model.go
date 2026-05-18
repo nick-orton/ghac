@@ -148,6 +148,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyMsg:
+		// If the active screen is waiting for a second key (f<letter>
+		// fast-navigation), forward ALL keys to it before global handlers
+		// can steal them (e.g. "p" for play/pause).
+		if m.activeScreenPendingF() {
+			return m.delegateToActiveScreen(msg)
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -182,6 +189,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.delegateToActiveScreen(msg)
+}
+
+// activeScreenPendingF reports whether the active screen is mid f<letter>
+// fast-navigation sequence and needs to consume the next key itself.
+func (m Model) activeScreenPendingF() bool {
+	switch m.activeScreen {
+	case screenPlaylist:
+		return m.playlist.pendingF
+	case screenNavigator:
+		return m.navigator.pendingF
+	}
+	return false
 }
 
 // delegateToActiveScreen forwards a message to the currently active screen.
