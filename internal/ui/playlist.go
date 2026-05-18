@@ -16,6 +16,7 @@ type playlistScreen struct {
 	entries    []mpd.PlaylistEntry
 	cursor     int
 	pendingG   bool        // true after a single 'g' press, waiting for 'gg'
+	pendingF   bool        // true after 'f' press, waiting for letter to jump to
 	selected   map[int]bool
 	currentPos int         // playlist position of currently-playing song; -1 if none
 	mc         *mpd.Client // may be nil in tests; commands become no-ops
@@ -54,10 +55,22 @@ func (s playlistScreen) withCurrentPos(pos int) playlistScreen {
 func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Capture and clear the pending-g state before processing the key so
-		// that any key other than 'g' automatically cancels the sequence.
+		// Capture and clear pending states before processing the key.
 		wasPendingG := s.pendingG
+		wasPendingF := s.pendingF
 		s.pendingG = false
+		s.pendingF = false
+
+		// If f<key> sequence is in progress, consume this key as the jump
+		// target and do not pass it to the normal key handler.
+		if wasPendingF {
+			key := msg.String()
+			if len(key) == 1 && key[0] >= 'a' && key[0] <= 'z' ||
+				len(key) == 1 && key[0] >= 'A' && key[0] <= 'Z' {
+				s = s.jumpToLetter(rune(strings.ToLower(key)[0]))
+			}
+			break
+		}
 
 		switch msg.String() {
 		case "j":
@@ -72,6 +85,8 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 			if len(s.entries) > 0 {
 				s.cursor = len(s.entries) - 1
 			}
+		case "f":
+			s.pendingF = true
 		case "g":
 			if wasPendingG {
 				s.cursor = 0 // gg → top
@@ -158,6 +173,23 @@ func (s playlistScreen) removeSongs() playlistScreen {
 		s.cursor = len(s.entries) - 1
 	}
 
+	return s
+}
+
+// jumpToLetter moves the cursor to the next entry (wrapping around) whose
+// display name begins with r (already lower-cased). Searches forward from
+// cursor+1, wrapping to the top, skipping the cursor itself. No-op if no
+// match exists.
+func (s playlistScreen) jumpToLetter(r rune) playlistScreen {
+	n := len(s.entries)
+	for i := 1; i < n; i++ {
+		idx := (s.cursor + i) % n
+		name := strings.ToLower(entryDisplayName(s.entries[idx]))
+		if len(name) > 0 && rune(name[0]) == r {
+			s.cursor = idx
+			return s
+		}
+	}
 	return s
 }
 

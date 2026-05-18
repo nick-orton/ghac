@@ -353,16 +353,25 @@ cursor index. Updates when `MsgClientsUpdated` arrives via
 issuing volume/mute commands.
 
 **Playlist screen** (`playlistScreen`) owns `[]PlaylistEntry`,
-a cursor index, a `map[int]bool` selection set, and the
-`currentPos` of the playing song. Updates when
+a cursor index, a `map[int]bool` selection set, `pendingG` and
+`pendingF` booleans for two-key sequences (`gg` and `f<letter>`),
+and the `currentPos` of the playing song. `f<letter>` is handled
+in `Update` before the normal key switch: when `pendingF` is set
+the next keystroke is consumed; if it is a letter, `jumpToLetter`
+searches forward from `cursor+1` (wrapping) by the first character
+of `entryDisplayName()`. Non-letter keys cancel with no action. Updates when
 `MsgPlaylistChanged` arrives via `withEntries()`. Holds a
 pointer to the MPD client for issuing playlist commands.
 
 **Navigator screen** (`navigatorScreen`) owns `[]DirEntry`,
-a cursor index, a viewport `offset`, a `map[int]bool` selection
-set, a `map[string]bool` `inPlaylist` set (MPD URIs currently
-in the queue), `currentPath` (current directory URI), and
-terminal `width`/`height`. The entry list updates synchronously
+a cursor index, a viewport `offset`, `pendingG` and `pendingF`
+booleans for two-key sequences (`gg` and `f<letter>`), a
+`map[int]bool` selection set, a `map[string][]int` `inPlaylist`
+map (MPD URI → playlist positions), `currentPath` (current
+directory URI), and terminal `width`/`height`. `f<letter>` uses
+the same pending-key pattern as the playlist screen; `jumpToLetter`
+searches forward from `cursor+1` (wrapping) by the first character
+of `entry.Name` and calls `clampOffset()` after a match. The entry list updates synchronously
 when the user navigates directories (calling `ListInfo` directly
 from the `Update` method). The `inPlaylist` map updates from
 `MsgPlaylistChanged` via `withPlaylist()`. Holds a pointer to

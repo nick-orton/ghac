@@ -164,16 +164,30 @@ can move freely after selecting songs.
 
 **Playlist Control keybindings:**
 
-| Key     | Action                                    |
-| ------- | ----------------------------------------- |
-| `j`     | Move cursor down one song                 |
-| `k`     | Move cursor up one song                   |
-| `gg`    | Move cursor to the first song             |
-| `G`     | Move cursor to the last song              |
-| `space` | Toggle selection on the song under cursor  |
-| `x`     | Remove selected song(s) from the playlist |
-| `X`     | Clear the entire playlist                 |
-| `enter` | Start playing the song under cursor       |
+| Key          | Action                                    |
+| ------------ | ----------------------------------------- |
+| `j`          | Move cursor down one song                 |
+| `k`          | Move cursor up one song                   |
+| `gg`         | Move cursor to the first song             |
+| `G`          | Move cursor to the last song              |
+| `f <letter>` | Jump to next song starting with letter (wraps) |
+| `space`      | Toggle selection on the song under cursor  |
+| `x`          | Remove selected song(s) from the playlist |
+| `X`          | Clear the entire playlist                 |
+| `enter`      | Start playing the song under cursor       |
+
+**Fast-jump behavior (`f <letter>`):**
+
+- `f` followed by a letter (case-insensitive) moves the cursor
+  to the next song whose display name ("Title – Artist" or
+  filename) begins with that letter.
+- The search starts from the entry after the cursor and wraps
+  around to the top of the list if no match is found before
+  the end.
+- If no song in the list starts with the letter, the cursor
+  does not move.
+- `f` followed by a non-letter key cancels the sequence with
+  no action.
 
 **Removal behavior:**
 
@@ -226,19 +240,33 @@ Selected entries are marked with a `*` prefix character.
 
 **Library Navigator keybindings:**
 
-| Key      | Action                                               |
-| -------- | ---------------------------------------------------- |
-| `j`      | Move cursor down one entry                           |
-| `k`      | Move cursor up one entry                             |
-| `gg`     | Move cursor to the first entry                       |
-| `G`      | Move cursor to the last entry                        |
-| `Ctrl-D` | Move cursor down half a page                         |
-| `Ctrl-U` | Move cursor up half a page                           |
-| `h`      | Navigate up one directory (back / parent)            |
-| `l`      | Enter the directory under cursor                     |
-| `space`  | Toggle selection on the entry under cursor           |
-| `x`      | Remove selected file(s) from the playlist            |
-| `enter`  | Enqueue selected entries to the playlist             |
+| Key          | Action                                               |
+| ------------ | ---------------------------------------------------- |
+| `j`          | Move cursor down one entry                           |
+| `k`          | Move cursor up one entry                             |
+| `gg`         | Move cursor to the first entry                       |
+| `G`          | Move cursor to the last entry                        |
+| `f <letter>` | Jump to next entry starting with letter (wraps)      |
+| `Ctrl-D`     | Move cursor down half a page                         |
+| `Ctrl-U`     | Move cursor up half a page                           |
+| `h`          | Navigate up one directory (back / parent)            |
+| `l`          | Enter the directory under cursor                     |
+| `space`      | Toggle selection on the entry under cursor           |
+| `x`          | Remove selected file(s) from the playlist            |
+| `enter`      | Enqueue selected entries to the playlist             |
+
+**Fast-jump behavior (`f <letter>`):**
+
+- `f` followed by a letter (case-insensitive) moves the cursor
+  to the next entry whose filename or directory name begins
+  with that letter.
+- The search starts from the entry after the cursor and wraps
+  around to the top of the list if no match is found before
+  the end.
+- If no entry in the current directory starts with the letter,
+  the cursor does not move.
+- `f` followed by a non-letter key cancels the sequence with
+  no action.
 
 **Navigation behavior:**
 
