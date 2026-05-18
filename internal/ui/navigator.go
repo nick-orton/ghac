@@ -17,6 +17,7 @@ type navigatorScreen struct {
 	cursor      int
 	offset      int             // index of the first visible entry (viewport top)
 	pendingG    bool            // true after a single 'g' press, waiting for 'gg'
+	pendingF    bool            // true after 'f' press, waiting for letter to jump to
 	selected    map[int]bool
 	inPlaylist  map[string][]int // MPD URI → playlist positions (supports duplicates)
 	currentPath string          // MPD URI of the current directory; "" for root
@@ -94,10 +95,22 @@ func (s navigatorScreen) clampOffset() navigatorScreen {
 func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Capture and clear the pending-g state before processing the key so
-		// that any key other than 'g' automatically cancels the sequence.
+		// Capture and clear pending states before processing the key.
 		wasPendingG := s.pendingG
+		wasPendingF := s.pendingF
 		s.pendingG = false
+		s.pendingF = false
+
+		// If f<key> sequence is in progress, consume this key as the jump
+		// target and do not pass it to the normal key handler.
+		if wasPendingF {
+			key := msg.String()
+			if len(key) == 1 && key[0] >= 'a' && key[0] <= 'z' ||
+				len(key) == 1 && key[0] >= 'A' && key[0] <= 'Z' {
+				s = s.jumpToLetter(rune(strings.ToLower(key)[0]))
+			}
+			break
+		}
 
 		switch msg.String() {
 		case "j":
@@ -115,6 +128,8 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 				s.cursor = len(s.entries) - 1
 				s = s.clampOffset()
 			}
+		case "f":
+			s.pendingF = true
 		case "g":
 			if wasPendingG {
 				s.cursor = 0 // gg → top
@@ -284,6 +299,22 @@ func (s navigatorScreen) fetchEntries(path string) []mpd.DirEntry {
 		return nil
 	}
 	return entries
+}
+
+// jumpToLetter moves the cursor to the next entry (wrapping around) whose
+// Name begins with r (already lower-cased). Searches forward from cursor+1,
+// wrapping to the top, skipping the cursor itself. No-op if no match exists.
+func (s navigatorScreen) jumpToLetter(r rune) navigatorScreen {
+	n := len(s.entries)
+	for i := 1; i < n; i++ {
+		idx := (s.cursor + i) % n
+		name := strings.ToLower(s.entries[idx].Name)
+		if len(name) > 0 && rune(name[0]) == r {
+			s.cursor = idx
+			return s.clampOffset()
+		}
+	}
+	return s
 }
 
 func (s navigatorScreen) View() string {
