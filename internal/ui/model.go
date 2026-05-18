@@ -164,101 +164,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyMsg:
-		// Global quit keys are always handled.
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		}
-
-		// While the rename modal is open, delegate all keys to the volume
-		// screen (which handles esc, ctrl+s, and text editing).
-		if m.volume.showRename {
-			return m.delegateToActiveScreen(msg)
-		}
-
-		switch msg.String() {
-		case "esc":
-			if m.showTheme {
-				applyTheme(Themes[m.originalThemeIdx])
-				m.activeThemeIdx = m.originalThemeIdx
-				m.showTheme = false
-				return m, nil
+		for _, handler := range keyHandlers {
+			if newM, cmd, handled := handler(m, msg); handled {
+				return newM, cmd
 			}
-			if m.showHelp {
-				m.showHelp = false
-				return m, nil
-			}
-		case "?":
-			if !m.showTheme {
-				m.showHelp = !m.showHelp
-				return m, nil
-			}
-		case "ctrl+t":
-			if !m.showHelp {
-				if m.showTheme {
-					// Second press: revert and close (same as Esc).
-					applyTheme(Themes[m.originalThemeIdx])
-					m.activeThemeIdx = m.originalThemeIdx
-					m.showTheme = false
-				} else {
-					m.originalThemeIdx = m.activeThemeIdx
-					m.themeModal = newThemeScreen(m.activeThemeIdx)
-					m.showTheme = true
-				}
-				return m, nil
-			}
-		}
-
-		// While the theme modal is open, handle Enter to confirm and
-		// delegate j/k to the modal; swallow everything else.
-		if m.showTheme {
-			if msg.String() == "enter" {
-				m.activeThemeIdx = m.themeModal.cursor
-				_ = SaveThemeState(Themes[m.activeThemeIdx].Name)
-				m.showTheme = false
-				return m, nil
-			}
-			m.themeModal, _ = m.themeModal.Update(msg)
-			m.activeThemeIdx = m.themeModal.cursor
-			return m, nil
-		}
-
-		// While the help modal is open, swallow all other key events.
-		if m.showHelp {
-			return m, nil
-		}
-
-		// If the active screen is waiting for a second key (f<letter>
-		// fast-navigation), forward ALL keys to it before global handlers
-		// can steal them (e.g. "p" for play/pause).
-		if m.activeScreenPendingF() {
-			return m.delegateToActiveScreen(msg)
-		}
-
-		switch msg.String() {
-		case "p":
-			if m.mpdClient != nil {
-				if m.playerStatus == "play" {
-					_ = m.mpdClient.Pause()
-				} else {
-					_ = m.mpdClient.Play()
-				}
-			}
-			return m, nil
-		case "z":
-			if m.mpdClient != nil {
-				_ = m.mpdClient.Random(!m.randomOn)
-			}
-			return m, nil
-		case "1":
-			m.activeScreen = screenVolume
-			return m, nil
-		case "2":
-			m.activeScreen = screenPlaylist
-			return m, nil
-		case "3":
-			m.activeScreen = screenNavigator
-			return m, nil
 		}
 	}
 
@@ -278,7 +187,7 @@ func (m Model) activeScreenPendingF() bool {
 }
 
 // delegateToActiveScreen forwards a message to the currently active screen.
-func (m Model) delegateToActiveScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) delegateToActiveScreen(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.activeScreen {
 	case screenVolume:
