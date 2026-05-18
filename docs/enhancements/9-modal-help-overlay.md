@@ -1,8 +1,8 @@
-## Modal Help Overlay (`?`)
+# Modal Help Overlay (`?`)
 
 [issue #9](https://github.com/nick-orton/ghac/issues/9)
 
-### Summary
+## Summary
 
 Replace the full-screen Help screen with a modal overlay that floats
 on top of the currently active screen. The underlying screen content
@@ -10,7 +10,7 @@ remains visible around the edges of the modal.
 
 ---
 
-### Scope
+## Scope
 
 | Area                          | Change                                              |
 | ----------------------------- | --------------------------------------------------- |
@@ -22,7 +22,7 @@ remains visible around the edges of the modal.
 
 ---
 
-### Behaviour Specification
+## Behaviour Specification
 
 1. Press `?` — the help modal appears centered over the current
    screen. The current screen's tab remains highlighted; `?:Help`
@@ -37,7 +37,7 @@ remains visible around the edges of the modal.
    screen is fully restored.
 5. `?` is a toggle: pressing it while the modal is open closes it.
 
-#### Modal sizing
+### Modal sizing
 
 - **Width:** `min(82, terminalWidth − 4)` — gives a comfortable
   margin on narrow terminals while capping at 82 characters (wide
@@ -50,7 +50,7 @@ remains visible around the edges of the modal.
 - **Minimum width floor:** 20 characters (defensive guard for
   very narrow terminals).
 
-#### State model change
+### State model change
 
 | Before                                                 | After                            |
 | ------------------------------------------------------ | -------------------------------- |
@@ -60,7 +60,7 @@ remains visible around the edges of the modal.
 
 ---
 
-### Design Decisions (confirmed)
+## Design Decisions (confirmed)
 
 1. **`screenHelp` removed** — help is no longer a peer screen;
    it is a transient overlay. `activeScreen` never holds a

@@ -1,8 +1,8 @@
-## Fast Navigation (`f<letter>`)
+# Fast Navigation (`f<letter>`)
 
 [issue #7](https://github.com/nick-orton/ghac/issues/7)
 
-### Summary
+## Summary
 
 Add a two-key jump shortcut to the **Playlist Control** and **Library
 Navigator** screens. Pressing `f` followed by a letter moves the
@@ -11,7 +11,7 @@ cursor to the first entry whose display name starts with that letter
 
 ---
 
-### Scope
+## Scope
 
 | Screen             | In scope |
 | ------------------ | -------- |
@@ -21,7 +21,7 @@ cursor to the first entry whose display name starts with that letter
 
 ---
 
-### Behaviour Specification
+## Behaviour Specification
 
 1. Press `f` — the screen enters a "pending-f" state; the next
    keystroke is consumed as the search target.
@@ -38,7 +38,7 @@ cursor to the first entry whose display name starts with that letter
 5. After the jump (match or no-match) the viewport is scrolled so the
    cursor is visible (`clampOffset()` in the navigator).
 
-#### Display name used for matching
+### Display name used for matching
 
 | Screen            | Match target                                         |
 | ----------------- | ---------------------------------------------------- |
@@ -51,7 +51,7 @@ right-aligned as metadata) is secondary context.
 
 ---
 
-### Design Decisions (confirmed)
+## Design Decisions (confirmed)
 
 1. **Navigator match target** — `entry.Name` (filename/dirname).
 2. **Search direction** — vim-style: search forward from `cursor+1`,
