@@ -171,6 +171,8 @@ can move freely after selecting songs.
 | `gg`         | Move cursor to the first song             |
 | `G`          | Move cursor to the last song              |
 | `f <letter>` | Jump to next song starting with letter (wraps) |
+| `Ctrl-J`     | Move song under cursor down one position  |
+| `Ctrl-K`     | Move song under cursor up one position    |
 | `space`      | Toggle selection on the song under cursor  |
 | `x`          | Remove selected song(s) from the playlist |
 | `X`          | Clear the entire playlist                 |
