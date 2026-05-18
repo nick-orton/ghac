@@ -443,7 +443,11 @@ the application.
 ```
 
 Global keys active on every screen: `p` play/pause, `z` toggle
+<<<<<<< HEAD
 random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens, `ctrl+t` theme,
+=======
+random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens,
+>>>>>>> main
 `?` help.
 
 ## 7. Edge Cases
