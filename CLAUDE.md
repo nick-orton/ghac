@@ -15,7 +15,9 @@ When working on a GitHub issue, follow these steps in order:
 
 1. **Read** the issue and all existing documentation (`docs/*`)
 2. **Ask clarifying questions** before proceeding
-3. **Plan** — add a section to `enhancements.md` using the template below
+3. **Plan** — create a new file in `docs/enhancements/` using the template
+   below. Name it `<issue#>-<short-slug>.md` (e.g.
+   `docs/enhancements/12-volume-sync.md`).
 4. **Update docs** — revise `docs/design.md`, `docs/architecture.md`, and
    `docs/ux.md` to reflect the planned change
 5. **Implement** the change
@@ -25,20 +27,20 @@ When working on a GitHub issue, follow these steps in order:
 
 Consult the @product-manager subagent for product design and planning.
 
-### enhancements.md Template
+### Enhancement file template
 
 ```markdown
-## <Feature Name> (`<shortcut or keyword>`)
+# <Feature Name> (`<shortcut or keyword>`)
 
 [issue #N](https://github.com/nick-orton/ghac/issues/N)
 
-### Summary
+## Summary
 
 <One-paragraph description of what the feature does and why.>
 
 ---
 
-### Scope
+## Scope
 
 | Screen             | In scope |
 | ------------------ | -------- |
@@ -46,12 +48,12 @@ Consult the @product-manager subagent for product design and planning.
 
 ---
 
-### Behaviour Specification
+## Behaviour Specification
 
 1. <Step-by-step description of the exact behaviour.>
 2. <Include edge cases (no match, boundary conditions, etc.).>
 
-#### <Sub-section if needed (e.g. display name used for matching)>
+### <Sub-section if needed (e.g. display name used for matching)>
 
 | Screen | Detail |
 | ------ | ------ |
@@ -59,7 +61,7 @@ Consult the @product-manager subagent for product design and planning.
 
 ---
 
-### Design Decisions (confirmed)
+## Design Decisions (confirmed)
 
 1. **<Decision topic>** — <rationale>.
 2. ...
@@ -83,7 +85,7 @@ docs/
   |                      issues for new features)
   ├── design.md         (Describes how the system should behave)
   ├── plan.md           (Describes the initial implementation plan)
-  ├── enhancements.md   (extensions beyond plan.md)
+  ├── enhancements/     (one .md per issue; filename: <issue#>-<slug>.md)
   └── ux.md             (UX standards: colors, layout, typography,
                          component conventions)
 README.md               (user-facing documentation)
