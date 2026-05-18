@@ -236,9 +236,8 @@ func TestNavLOnFileIsNoop(t *testing.T) {
 func TestNavHGoesUp(t *testing.T) {
 	// Start in a subdirectory.
 	s := navigatorScreen{
+		listCursor:  listCursor{cursor: 1, selected: make(map[int]bool), overhead: 7},
 		entries:     testDirEntries(),
-		cursor:      1,
-		selected:    make(map[int]bool),
 		currentPath: "rock/classic",
 	}
 	s = pressNavKey(s, "h")
@@ -257,10 +256,8 @@ func TestNavGoUpRestoresCursor(t *testing.T) {
 	// testDirEntries: [rock/(0), jazz/(1), song.flac(2), notagged.mp3(3)]
 	// We are currently inside "jazz". goUp should land on jazz/ at index 1.
 	s := navigatorScreen{
+		listCursor:  listCursor{selected: make(map[int]bool), overhead: 7},
 		entries:     testDirEntries(), // pre-loaded parent entries
-		cursor:      0,
-		offset:      0,
-		selected:    make(map[int]bool),
 		inPlaylist:  make(map[string][]int),
 		currentPath: "jazz",
 		// mc is nil, so fetchEntries returns nil and we override below.
@@ -554,9 +551,8 @@ func TestNavViewShowsBreadcrumbAtRoot(t *testing.T) {
 
 func TestNavViewShowsCurrentPath(t *testing.T) {
 	s := navigatorScreen{
+		listCursor:  listCursor{selected: make(map[int]bool), overhead: 7},
 		entries:     testDirEntries(),
-		cursor:      0,
-		selected:    make(map[int]bool),
 		currentPath: "rock/classic",
 	}
 	view := s.View()
@@ -755,12 +751,9 @@ func TestNavEnterDirResetsOffset(t *testing.T) {
 
 func TestNavGoUpResetsOffset(t *testing.T) {
 	s := navigatorScreen{
+		listCursor:  listCursor{cursor: 20, offset: 15, selected: make(map[int]bool), height: 17, overhead: 7},
 		entries:     makeEntries(50),
-		cursor:      20,
-		offset:      15,
-		selected:    make(map[int]bool),
 		currentPath: "someDir",
-		height:      17,
 	}
 	s = s.goUp()
 	if s.offset != 0 {
