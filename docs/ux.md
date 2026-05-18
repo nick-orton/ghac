@@ -159,6 +159,25 @@ Each song row follows this prefix layout (5 characters):
 
 **Empty state:** `stylePlaceholder` renders "Playlist is empty".
 
+### 7.3 Viewport Scrolling
+
+The playlist implements vertical viewport scrolling. The viewport
+height is calculated as `terminal_height - 6` (overhead:
+nowplaying, separator, tabstrip, separator, border top, border
+bottom). Before the first `WindowSizeMsg` arrives, a default of
+24 rows is used.
+
+The viewport offset auto-adjusts so the cursor is always visible:
+- If the cursor moves above the viewport, the offset snaps to the
+  cursor position.
+- If the cursor moves below the viewport, the offset advances so
+  the cursor is the last visible row.
+
+`Ctrl-D` and `Ctrl-U` move the cursor by half the viewport height.
+Fast-jump (`f<letter>`) and song removal (`x`) also trigger
+`clampOffset()` so the viewport is always correct after those
+operations.
+
 ## 8. Library Navigator Screen
 
 ### 8.1 Breadcrumb Line
