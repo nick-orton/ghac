@@ -234,7 +234,7 @@ func (m Model) View() string {
 	title := m.screens[m.activeScreen].screenTitle()
 	content := m.screens[m.activeScreen].View()
 
-	background := np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
+	background := np + "\n" + m.tabStripView() + "\n" + borderBox(title, content, m.width, 80)
 
 	// Pad the background to exactly m.height lines so the frame height is
 	// always consistent regardless of whether a modal overlay is open. Without
@@ -281,7 +281,7 @@ func (m Model) overlayModal(title, content string, minW, maxW int, bg string) st
 	if w < minW {
 		w = minW
 	}
-	modal := modalBorder(title, content, w)
+	modal := borderBox(title, content, w, 20)
 	lines := strings.Count(modal, "\n") + 1
 	x := (m.width - w) / 2
 	y := (m.height - lines) / 2
@@ -347,20 +347,19 @@ func placeOverlay(x, y int, fg, bg string) string {
 	return b.String()
 }
 
-// screenBorder wraps content in a single-line box with the screen title
-// embedded in the top edge:
+// borderBox wraps content in a single-line box with the title embedded in the
+// top edge:
 //
 //	┌─ Title ──────────────────────────────────────┐
 //	│ content line                                 │
 //	└──────────────────────────────────────────────┘
 //
-// width is the full terminal width; a minimum of 80 is enforced.
-func screenBorder(title, content string, width int) string {
+// If width is less than 4 it is replaced with fallbackWidth.
+func borderBox(title, content string, width, fallbackWidth int) string {
 	if width < 4 {
-		width = 80
+		width = fallbackWidth
 	}
 
-	// Top edge: ┌─ Title ─────...─┐
 	styledTitle := styleTitle.Render(title)
 	titleSeg := "─ " + styledTitle + " "
 	fillLen := width - 2 - lipgloss.Width(titleSeg)
@@ -368,56 +367,12 @@ func screenBorder(title, content string, width int) string {
 		fillLen = 1
 	}
 	top := "┌" + titleSeg + strings.Repeat("─", fillLen) + "┐"
-
-	// Bottom edge: └──────...──┘
 	bottom := "└" + strings.Repeat("─", width-2) + "┘"
 
-	// Inner content area: width minus two border chars and one space pad each side.
 	innerWidth := width - 4
 
 	lines := strings.Split(content, "\n")
 	// Drop trailing blank line that screens often emit.
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-
-	var b strings.Builder
-	b.WriteString(top)
-	b.WriteByte('\n')
-	for _, line := range lines {
-		pad := innerWidth - lipgloss.Width(line)
-		if pad < 0 {
-			pad = 0
-		}
-		b.WriteString("│ ")
-		b.WriteString(line)
-		b.WriteString(strings.Repeat(" ", pad))
-		b.WriteString(" │\n")
-	}
-	b.WriteString(bottom)
-	return b.String()
-}
-
-// modalBorder wraps content in a box at the given width, with the title
-// embedded in the top edge. Uses the same box-drawing characters as
-// screenBorder but operates at modal (not terminal) width.
-func modalBorder(title, content string, width int) string {
-	if width < 4 {
-		width = 20
-	}
-
-	styledTitle := styleTitle.Render(title)
-	titleSeg := "─ " + styledTitle + " "
-	fillLen := width - 2 - lipgloss.Width(titleSeg)
-	if fillLen < 1 {
-		fillLen = 1
-	}
-	top := "┌" + titleSeg + strings.Repeat("─", fillLen) + "┐"
-	bottom := "└" + strings.Repeat("─", width-2) + "┘"
-
-	innerWidth := width - 4
-
-	lines := strings.Split(content, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
