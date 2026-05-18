@@ -297,19 +297,23 @@ Selected entries are marked with a `*` prefix character.
   (handled by MPD).
 - Enqueued songs are appended to the end of the MPD playlist.
 
-### 4.4 Help Screen
+### 4.4 Help Modal
 
 Provides a quick-reference for all keybindings across all
 screens. Lists every keybinding organized by section: Global,
 Player Volume, Playlist Control, and Library Navigator. Each
 entry shows the key and a short description of its action.
 
-| Key   | Action                               |
-| ----- | ------------------------------------ |
-| `Esc` | Return to the screen that invoked it |
+Help appears as a centered modal overlay on top of the current
+screen. The underlying screen content remains visible around
+the edges. `?` toggles the modal open/closed; `Esc` also
+closes it. The active screen tab remains highlighted while the
+modal is open.
 
-The help screen remembers which screen the user came from and
-returns to that screen on exit.
+| Key   | Action              |
+| ----- | ------------------- |
+| `?`   | Toggle help modal   |
+| `Esc` | Close help modal    |
 
 ## 5. Connection Model
 

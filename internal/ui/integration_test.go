@@ -140,7 +140,6 @@ func TestIntegrationScreenNavigation(t *testing.T) {
 		{"1", screenVolume, "Player Volume"},
 		{"2", screenPlaylist, "Playlist Control"},
 		{"3", screenNavigator, "Library Navigator"},
-		{"?", screenHelp, "Help"},
 	}
 
 	for _, tc := range cases {
@@ -158,6 +157,30 @@ func TestIntegrationScreenNavigation(t *testing.T) {
 			}
 		})
 	}
+
+	// Help is now a modal overlay; pressing ? sets showHelp without changing activeScreen.
+	t.Run("Help modal", func(t *testing.T) {
+		// Ensure we're on the volume screen first.
+		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+		m = updated.(Model)
+
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+		m = updated.(Model)
+
+		if !m.showHelp {
+			t.Error("showHelp should be true after pressing ?")
+		}
+		if m.activeScreen != screenVolume {
+			t.Errorf("activeScreen = %v, want screenVolume (modal should not change it)", m.activeScreen)
+		}
+		view := m.View()
+		if !strings.Contains(view, "Help") {
+			t.Errorf("View() missing Help title in modal after pressing ?")
+		}
+		// Close the modal before continuing.
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		m = updated.(Model)
+	})
 }
 
 // TestIntegrationPlayPauseToggle sends the play/pause key twice and verifies

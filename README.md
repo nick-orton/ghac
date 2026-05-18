@@ -53,16 +53,16 @@ or invalid it prints an error to stderr and exits with a non-zero status.
 
 ### Global Keys
 
-| Key      | Action                            |
-| -------- | --------------------------------- |
-| `1`      | Switch to Player Volume screen    |
-| `2`      | Switch to Playlist Control screen |
-| `3`      | Switch to Song Navigator screen   |
-| `?`      | Open the Help screen              |
-| `p`      | Toggle play / pause               |
-| `q`      | Quit                              |
-| `Ctrl-C` | Quit                              |
-| `Esc`    | Return to previous screen (Help) |
+| Key      | Action                              |
+| -------- | ----------------------------------- |
+| `1`      | Switch to Player Volume screen      |
+| `2`      | Switch to Playlist Control screen   |
+| `3`      | Switch to Library Navigator screen  |
+| `?`      | Toggle help overlay                 |
+| `p`      | Toggle play / pause                 |
+| `q`      | Quit                                |
+| `Ctrl-C` | Quit                                |
+| `Esc`    | Close help overlay                  |
 
 ### Screens
 
@@ -79,26 +79,32 @@ client.
 
 **Playlist Control (2)** — View and manage the MPD playback queue.
 
-| Key     | Action                                     |
-| ------- | ------------------------------------------ |
-| `j/k`   | Move cursor down / up                      |
-| `space` | Toggle selection on song under cursor      |
-| `x`     | Remove selected song(s) or song at cursor  |
-| `X`     | Clear the entire playlist                  |
-| `enter` | Start playing the song under cursor        |
+| Key          | Action                                    |
+| ------------ | ----------------------------------------- |
+| `j/k`        | Move cursor down / up                     |
+| `gg/G`       | Move cursor to top / bottom               |
+| `f <letter>` | Jump to first entry starting with letter  |
+| `space`      | Toggle selection on song under cursor     |
+| `x`          | Remove selected song(s) or song at cursor |
+| `X`          | Clear the entire playlist                 |
+| `enter`      | Start playing the song under cursor       |
 
-**Song Navigator (3)** — Browse the MPD music library by directory.
+**Library Navigator (3)** — Browse the MPD music library by directory.
 
-| Key     | Action                                      |
-| ------- | ------------------------------------------- |
-| `j/k`   | Move cursor down / up                       |
-| `h`     | Navigate to parent directory                |
-| `l`     | Enter directory under cursor                |
-| `space` | Toggle selection on entry under cursor      |
-| `enter` | Enqueue selected entries (or cursor entry)  |
+| Key          | Action                                     |
+| ------------ | ------------------------------------------ |
+| `j/k`        | Move cursor down / up                      |
+| `gg/G`       | Move cursor to top / bottom                |
+| `f <letter>` | Jump to first entry starting with letter   |
+| `Ctrl-D/U`   | Move cursor down / up half a page          |
+| `h`          | Navigate to parent directory               |
+| `l`          | Enter directory under cursor               |
+| `space`      | Toggle selection on entry under cursor     |
+| `x`          | Remove selected file(s) from playlist      |
+| `enter`      | Enqueue selected entries (or cursor entry) |
 
-**Help (?)** — Quick-reference for all keybindings. Press `Esc` to
-return to the previous screen.
+**Help (?)** — Quick-reference for all keybindings. Appears as a modal
+overlay on top of the current screen. Press `?` or `Esc` to close it.
 
 ## Running Tests
 
