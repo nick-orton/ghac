@@ -155,6 +155,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		}
+
+		// While the rename modal is open, delegate all keys to the volume
+		// screen (which handles esc, ctrl+s, and text editing).
+		if m.volume.showRename {
+			return m.delegateToActiveScreen(msg)
+		}
+
+		switch msg.String() {
 		case "?":
 			m.showHelp = !m.showHelp
 			return m, nil
@@ -263,6 +272,28 @@ func (m Model) View() string {
 	}
 
 	background := np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
+
+	if m.volume.showRename {
+		// Render the rename modal and overlay it centered on the background.
+		modalWidth := m.width - 4
+		if modalWidth > 50 {
+			modalWidth = 50
+		}
+		if modalWidth < 30 {
+			modalWidth = 30
+		}
+		modal := modalBorder("Rename Client", m.volume.renameModalContent(), modalWidth)
+		modalLines := strings.Count(modal, "\n") + 1
+		x := (m.width - modalWidth) / 2
+		y := (m.height - modalLines) / 2
+		if x < 0 {
+			x = 0
+		}
+		if y < 0 {
+			y = 0
+		}
+		return placeOverlay(x, y, modal, background)
+	}
 
 	if !m.showHelp {
 		return background

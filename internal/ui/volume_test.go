@@ -336,3 +336,148 @@ func TestViewShowsMuteIndicator(t *testing.T) {
 		t.Error("view should contain '[M]' mute indicator for muted client")
 	}
 }
+
+// pressSpecialKey sends a non-rune key event (ctrl, esc, arrows, etc.).
+func pressSpecialKey(s volumeScreen, keyType tea.KeyType) volumeScreen {
+	updated, _ := s.Update(tea.KeyMsg{Type: keyType})
+	return updated
+}
+
+// --- Rename modal ---
+
+func TestCtrlROpensRenameModal(t *testing.T) {
+	s := newTestVolumeScreen() // cursor=0, "Living Room"
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	if !s.showRename {
+		t.Error("showRename should be true after ctrl+r")
+	}
+	if string(s.renameInput) != "Living Room" {
+		t.Errorf("renameInput = %q, want %q", string(s.renameInput), "Living Room")
+	}
+	if s.renameCursor != len([]rune("Living Room")) {
+		t.Errorf("renameCursor = %d, want %d", s.renameCursor, len([]rune("Living Room")))
+	}
+}
+
+func TestCtrlRNoopWhenNoClients(t *testing.T) {
+	s := newVolumeScreen(nil, nil)
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	if s.showRename {
+		t.Error("showRename should remain false when no clients")
+	}
+}
+
+func TestEscClosesRenameModal(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	s = pressSpecialKey(s, tea.KeyEsc)
+	if s.showRename {
+		t.Error("showRename should be false after esc")
+	}
+	// Name must not have changed.
+	if s.clients[0].Name != "Living Room" {
+		t.Errorf("client name = %q after esc, want unchanged", s.clients[0].Name)
+	}
+}
+
+func TestTypingAppendsToRenameInput(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	// Cursor is at end; clear the input first then type a new name.
+	s.renameInput = nil
+	s.renameCursor = 0
+	updated, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Den")})
+	s = updated
+	if string(s.renameInput) != "Den" {
+		t.Errorf("renameInput = %q, want %q", string(s.renameInput), "Den")
+	}
+	if s.renameCursor != 3 {
+		t.Errorf("renameCursor = %d, want 3", s.renameCursor)
+	}
+}
+
+func TestSpaceInsertsIntoRenameInput(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	s.renameInput = []rune("Den")
+	s.renameCursor = 3
+	updated2, _ := s.Update(tea.KeyMsg{Type: tea.KeySpace})
+	s = updated2
+	updated3, _ := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("One")})
+	s = updated3
+	if string(s.renameInput) != "Den One" {
+		t.Errorf("renameInput = %q, want %q", string(s.renameInput), "Den One")
+	}
+}
+
+func TestBackspaceRemovesPrecedingChar(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	// renameInput = "Living Room", cursor at end (11)
+	s = pressSpecialKey(s, tea.KeyBackspace)
+	if string(s.renameInput) != "Living Roo" {
+		t.Errorf("renameInput = %q after backspace, want %q", string(s.renameInput), "Living Roo")
+	}
+}
+
+func TestDeleteRemovesCharAtCursor(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	// Move cursor to position 0 then delete.
+	s = pressSpecialKey(s, tea.KeyHome)
+	s = pressSpecialKey(s, tea.KeyDelete)
+	if string(s.renameInput) != "iving Room" {
+		t.Errorf("renameInput = %q after delete at 0, want %q", string(s.renameInput), "iving Room")
+	}
+}
+
+func TestLeftRightArrowsMoveRenameCursor(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	end := s.renameCursor
+	s = pressSpecialKey(s, tea.KeyLeft)
+	if s.renameCursor != end-1 {
+		t.Errorf("cursor = %d after left, want %d", s.renameCursor, end-1)
+	}
+	s = pressSpecialKey(s, tea.KeyRight)
+	if s.renameCursor != end {
+		t.Errorf("cursor = %d after right, want %d", s.renameCursor, end)
+	}
+}
+
+func TestCtrlSUpdatesLocalClientName(t *testing.T) {
+	s := newTestVolumeScreen() // cursor=0, "Living Room"
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	s.renameInput = []rune("Den")
+	s.renameCursor = 3
+	s = pressSpecialKey(s, tea.KeyCtrlS)
+	if s.showRename {
+		t.Error("showRename should be false after ctrl+s")
+	}
+	if s.clients[0].Name != "Den" {
+		t.Errorf("client name = %q after save, want %q", s.clients[0].Name, "Den")
+	}
+}
+
+func TestCtrlSNoopOnEmptyRenameInput(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	s.renameInput = nil
+	s.renameCursor = 0
+	s = pressSpecialKey(s, tea.KeyCtrlS)
+	if !s.showRename {
+		t.Error("showRename should remain true when ctrl+s pressed with empty input")
+	}
+}
+
+func TestRenameModalContentContainsCursor(t *testing.T) {
+	s := newTestVolumeScreen()
+	s = pressSpecialKey(s, tea.KeyCtrlR)
+	content := s.renameModalContent()
+	if !strings.Contains(content, "_") {
+		t.Error("renameModalContent should contain cursor character '_'")
+	}
+	if !strings.Contains(content, "Ctrl-S") {
+		t.Error("renameModalContent should contain hint text")
+	}
+}
