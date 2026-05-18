@@ -27,7 +27,8 @@ type MsgPlayerState struct {
 	Song          Song
 	Elapsed       time.Duration
 	TotalDuration time.Duration
-	SongPos       int // 0-indexed position of current song; -1 if none playing
+	SongPos       int  // 0-indexed position of current song; -1 if none playing
+	Random        bool // true when MPD random (shuffle) mode is on
 }
 
 // MsgPlaylistChanged is emitted when the MPD playlist is modified.

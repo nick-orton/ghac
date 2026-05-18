@@ -29,6 +29,7 @@ func (s helpScreen) View() string {
 	b.WriteString(helpRow("3", "Switch to Library Navigator screen"))
 	b.WriteString(helpRow("?", "Open help screen"))
 	b.WriteString(helpRow("p", "Toggle play / pause"))
+	b.WriteString(helpRow("z", "Toggle random (shuffle) mode"))
 	b.WriteString(helpRow("q / Ctrl-C", "Quit"))
 	b.WriteString(helpRow("Esc", "Return to previous screen (from help)"))
 	b.WriteString("\n")

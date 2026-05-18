@@ -60,6 +60,7 @@ or invalid it prints an error to stderr and exits with a non-zero status.
 | `3`      | Switch to Library Navigator screen  |
 | `?`      | Toggle help overlay                 |
 | `p`      | Toggle play / pause                 |
+| `z`      | Toggle random (shuffle) mode        |
 | `q`      | Quit                                |
 | `Ctrl-C` | Quit                                |
 | `Esc`    | Close help overlay                  |

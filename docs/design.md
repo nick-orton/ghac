@@ -45,6 +45,8 @@ message to stderr and exits with a non-zero status code.
 A persistent bar appears at the top of every screen. It
 displays:
 
+- **Random indicator** — `[Z]` prefix shown when MPD random
+  (shuffle) mode is active; absent when random is off.
 - **Song information** — metadata fields (title, artist,
   album) when available via MPD; falls back to the filename
   when metadata is absent.
@@ -93,6 +95,7 @@ These keybindings are active on every screen:
 | `3`      | Switch to Library Navigator screen     |
 | `?`      | Open the Help screen                |
 | `p`      | Toggle play / pause                 |
+| `z`      | Toggle random (shuffle) mode        |
 | `q`      | Quit the application                |
 | `Ctrl-C` | Quit the application                |
 
@@ -364,8 +367,9 @@ the application.
 └─────────────────────────────────────────────────┘
 ```
 
-Global keys active on every screen: `p` play/pause, `q` quit,
-`Ctrl-C` quit, `1`/`2`/`3` switch screens, `?` help.
+Global keys active on every screen: `p` play/pause, `z` toggle
+random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens,
+`?` help.
 
 ## 7. Edge Cases
 
