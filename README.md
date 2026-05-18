@@ -33,6 +33,8 @@ cp ghacrc.example ~/.config/.ghacrc
 | `snapserver.port` | SnapCast server port           |
 | `mpd.ip`          | MPD server IP address          |
 | `mpd.port`        | MPD server port                |
+| `theme`           | Optional. Theme name to use (e.g. `"ocean"`). Overridden by `--theme` flag. |
+| `[[themes]]`      | Optional. One or more user-defined theme blocks (see `ghacrc.example`). |
 
 ## Building
 
@@ -44,6 +46,7 @@ make build
 
 ```sh
 ./ghac
+./ghac --theme ocean   # start with a specific theme
 ```
 
 ghac reads `~/.config/.ghacrc` on startup. If the config file is missing
@@ -59,11 +62,12 @@ or invalid it prints an error to stderr and exits with a non-zero status.
 | `2`      | Switch to Playlist Control screen   |
 | `3`      | Switch to Library Navigator screen  |
 | `?`      | Toggle help overlay                 |
+| `ctrl+t` | Open theme selector                 |
 | `p`      | Toggle play / pause                 |
 | `z`      | Toggle random (shuffle) mode        |
 | `q`      | Quit                                |
 | `Ctrl-C` | Quit                                |
-| `Esc`    | Close help overlay                  |
+| `Esc`    | Close modal (reverts theme if theme selector is open) |
 
 ### Screens
 
@@ -109,6 +113,11 @@ client.
 
 **Help (?)** — Quick-reference for all keybindings. Appears as a modal
 overlay on top of the current screen. Press `?` or `Esc` to close it.
+
+**Theme (ctrl+t)** — Color theme selector. Lists all built-in themes
+(`default`, `ocean`, `forest`, `rose`, `mono`, `vampire`, `cyberpunk`,
+`matrix`). Use `j`/`k` to preview themes in real time, `Enter` to
+confirm, `Esc` to revert. The selected theme is saved across sessions.
 
 ## Running Tests
 

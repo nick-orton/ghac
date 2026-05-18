@@ -1,0 +1,118 @@
+# Built-in themes for ghac.
+# Colors are xterm-256 color numbers (0–255).
+# Add a new [[themes]] block and recompile to add a theme.
+#
+# Role reference:
+#   bar_bg         — now-playing bar background
+#   bar_fg         — now-playing bar text
+#   accent         — progress fill, playlist current row
+#   progress_empty — progress bar unfilled portion
+#   secondary      — time display, navigator metadata
+#   volume_unmuted — volume bar fill when unmuted
+#   volume_muted   — volume bar fill when muted
+
+# ── default ─────────────────────────────────────────────────────────────────
+# Classic cyan-on-dark-grey. Uses ANSI colors 1/2 so the greens and reds
+# respect the user's terminal palette.
+[[themes]]
+name           = "default"
+bar_bg         = "237"   # dark grey  #3a3a3a
+bar_fg         = "255"   # near-white #eeeeee
+accent         = "6"     # ANSI cyan
+progress_empty = "240"   # mid-grey   #585858
+secondary      = "245"   # grey       #8a8a8a
+volume_unmuted = "2"     # ANSI green
+volume_muted   = "1"     # ANSI red
+
+# ── ocean ────────────────────────────────────────────────────────────────────
+# Nord-inspired. Cool steel blues with a teal accent and seafoam green for
+# the volume bar. Palette stays within the blue–teal family throughout.
+[[themes]]
+name           = "ocean"
+bar_bg         = "24"    # dark steel blue  #005f87
+bar_fg         = "153"   # pale sky blue    #afd7ff
+accent         = "110"   # soft blue        #87afd7
+progress_empty = "239"   # dark grey        #4e4e4e
+secondary      = "67"    # muted steel blue #5f87af
+volume_unmuted = "79"    # seafoam teal     #5fd7af
+volume_muted   = "167"   # warm rose-red    #d75f5f
+
+# ── forest ───────────────────────────────────────────────────────────────────
+# Gruvbox dark-inspired. Warm cream text, sage-green accent, and amber
+# secondary text. All colours share the earthy warm-neutral undertone.
+[[themes]]
+name           = "forest"
+bar_bg         = "237"   # dark grey        #3a3a3a
+bar_fg         = "223"   # warm cream       #ffd7af
+accent         = "107"   # sage green       #87af5f
+progress_empty = "239"   # dark grey        #4e4e4e
+secondary      = "137"   # warm tan         #af875f
+volume_unmuted = "71"    # muted green      #5faf5f
+volume_muted   = "167"   # warm rose-red    #d75f5f
+
+# ── rose ─────────────────────────────────────────────────────────────────────
+# Rose Pine-inspired. Dark plum bar with mauve accent and pale pink text.
+# Soft green for unmuted keeps the pastel mood without clashing.
+[[themes]]
+name           = "rose"
+bar_bg         = "53"    # dark plum        #5f005f
+bar_fg         = "218"   # pale pink        #ffafd7
+accent         = "175"   # mauve            #d787af
+progress_empty = "238"   # dark grey        #444444
+secondary      = "139"   # muted mauve      #af87af
+volume_unmuted = "114"   # soft green       #87d787
+volume_muted   = "167"   # warm rose-red    #d75f5f
+
+# ── mono ─────────────────────────────────────────────────────────────────────
+# Greyscale only. Graduated steps from near-black to near-white keep every
+# element legible while remaining strictly monochrome.
+[[themes]]
+name           = "mono"
+bar_bg         = "236"   # dark grey        #303030
+bar_fg         = "253"   # near-white       #dadada
+accent         = "249"   # light grey       #b2b2b2
+progress_empty = "239"   # dim grey         #4e4e4e
+secondary      = "244"   # mid grey         #808080
+volume_unmuted = "251"   # light grey       #c6c6c6
+volume_muted   = "241"   # medium-dark grey #626262
+
+# ── vampire ──────────────────────────────────────────────────────────────────
+# Dracula-inspired. Deep blood-red bar with bright Dracula-red accent and
+# muted rose secondary. Muted volume sinks to near-black dark red (#870000).
+[[themes]]
+name           = "vampire"
+bar_bg         = "52"    # blood-red        #5f0000
+bar_fg         = "253"   # near-white       #dadada
+accent         = "203"   # dracula red      #ff5f5f
+progress_empty = "236"   # dark grey        #303030
+secondary      = "131"   # muted rose-red   #af5f5f
+volume_unmuted = "167"   # warm red         #d75f5f
+volume_muted   = "88"    # dark blood-red   #870000
+
+# ── cyberpunk ────────────────────────────────────────────────────────────────
+# Near-black background with complementary neon electric-cyan and hot-magenta.
+# Secondary uses muted indigo. Volume goes cyan when live, dark grey when
+# silenced — a powered-on / powered-off contrast.
+[[themes]]
+name           = "cyberpunk"
+bar_bg         = "234"   # near-black       #1c1c1c
+bar_fg         = "117"   # electric cyan    #87d7ff
+accent         = "207"   # hot magenta      #ff5fff
+progress_empty = "237"   # dark grey        #3a3a3a
+secondary      = "105"   # muted indigo     #8787ff
+volume_unmuted = "51"    # neon cyan        #00ffff
+volume_muted   = "59"    # dark grey        #5f5f5f
+
+# ── matrix ───────────────────────────────────────────────────────────────────
+# Strictly monochromatic phosphor-green on near-black. Three shades of green
+# create the hierarchy: bright for active, medium for secondary, dark for
+# the unfilled bar and muted state.
+[[themes]]
+name           = "matrix"
+bar_bg         = "232"   # near-black       #080808
+bar_fg         = "40"    # matrix green     #00d700
+accent         = "40"    # matrix green     #00d700
+progress_empty = "22"    # dark green glow  #005f00
+secondary      = "28"    # medium green     #008700
+volume_unmuted = "40"    # matrix green     #00d700
+volume_muted   = "22"    # dark green       #005f00

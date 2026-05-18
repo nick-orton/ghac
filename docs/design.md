@@ -31,6 +31,13 @@ home audio system.
 | `mpd.ip`           | Music Player Daemon IP address |
 | `mpd.port`         | Music Player Daemon port       |
 
+### 2.3 Optional Fields
+
+| Field       | Description                                                  |
+| ----------- | ------------------------------------------------------------ |
+| `theme`     | Name of the active theme (built-in or user-defined)          |
+| `[[themes]]`| One or more user-defined theme blocks (see section 4.5)      |
+
 ### 2.3 Startup Behavior
 
 On launch, ghac reads the config file and attempts to connect
@@ -67,8 +74,9 @@ screen at all times:
 ```
 
 The active screen's tab is highlighted (bold + underline);
-inactive tabs are dimmed. This gives the user a permanent
-reminder of both the current location and how to navigate.
+inactive tabs are dimmed. `?:Help` is always shown inactive
+because it opens a modal overlay rather than switching to a
+peer screen.
 
 ### 3.3 Screen Title and Border
 
@@ -92,12 +100,14 @@ These keybindings are active on every screen:
 | -------- | ----------------------------------- |
 | `1`      | Switch to Player Volume screen      |
 | `2`      | Switch to Playlist Control screen   |
-| `3`      | Switch to Library Navigator screen     |
-| `?`      | Open the Help screen                |
+| `3`      | Switch to Library Navigator screen  |
+| `?`      | Open the Help modal                 |
+| `ctrl+t` | Open the Theme selector modal       |
 | `p`      | Toggle play / pause                 |
 | `z`      | Toggle random (shuffle) mode        |
 | `q`      | Quit the application                |
 | `Ctrl-C` | Quit the application                |
+| `Esc`    | Close the open modal (reverts theme if theme modal) |
 
 ## 4. Screens
 
@@ -355,6 +365,48 @@ modal is open.
 | `?`   | Toggle help modal   |
 | `Esc` | Close help modal    |
 
+### 4.5 Theme Modal
+
+Allows the user to select a color theme from the list of
+built-in themes. The modal lists all themes by name. Moving
+the cursor previews each theme in real time. Confirming saves
+the selection for future sessions.
+
+The theme modal appears as a centered overlay (like Help).
+The Help and Theme modals are mutually exclusive — only one
+can be open at a time.
+
+| Key      | Action                                          |
+| -------- | ----------------------------------------------- |
+| `ctrl+t` | Open theme modal (second press: revert+close)   |
+| `j / k`  | Move cursor down / up through themes            |
+| `Enter`  | Confirm selection and save                      |
+| `Esc`    | Revert to previous theme and close              |
+
+**Theme resolution order (highest priority first):**
+1. `--theme <name>` command-line flag
+2. `theme = "<name>"` in `.ghacrc`
+3. Saved name in the XDG state file
+   (`$XDG_STATE_HOME/ghac/theme`)
+4. Built-in default (`default`)
+
+**User-defined themes** are declared as `[[themes]]` blocks in
+`.ghacrc` using the same fields as the built-in `themes.toml`.
+They appear at the bottom of the theme selector after all
+built-ins. An unnamed theme block is skipped with a warning.
+
+```toml
+[[themes]]
+name           = "dawn"
+bar_bg         = "130"
+bar_fg         = "230"
+accent         = "214"
+progress_empty = "238"
+secondary      = "179"
+volume_unmuted = "107"
+volume_muted   = "131"
+```
+
 ## 5. Connection Model
 
 ### 5.1 MPD
@@ -391,7 +443,11 @@ the application.
 ```
 
 Global keys active on every screen: `p` play/pause, `z` toggle
+<<<<<<< HEAD
+random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens, `ctrl+t` theme,
+=======
 random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens,
+>>>>>>> main
 `?` help.
 
 ## 7. Edge Cases

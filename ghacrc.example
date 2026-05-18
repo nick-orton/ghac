@@ -5,3 +5,37 @@ port = 1705
 [mpd]
 ip = "192.168.1.10"
 port = 6600
+
+# theme selects the active color theme by name.
+# Built-in themes: default, ocean, forest, rose, mono, vampire, cyberpunk, matrix
+# You can also use the name of any custom theme defined below.
+# Omit this field to use the last theme chosen in the theme selector (ctrl+t),
+# or "default" if no selection has been saved.
+#
+# theme = "ocean"
+
+# ── Custom themes (optional) ─────────────────────────────────────────────────
+# Define your own themes using [[themes]] blocks. Each theme is appended after
+# the built-ins and appears at the bottom of the theme selector (ctrl+t).
+# Color values are xterm-256 color numbers (0–255) as strings.
+# See https://www.ditig.com/256-colors-cheat-sheet for the full palette.
+#
+# [[themes]]
+# name           = "dawn"
+# bar_bg         = "130"   # dark amber      #af5f00
+# bar_fg         = "230"   # warm cream      #ffffd7
+# accent         = "214"   # amber gold      #ffaf00
+# progress_empty = "238"   # dark grey       #444444
+# secondary      = "179"   # warm gold       #d7af5f
+# volume_unmuted = "107"   # sage green      #87af5f
+# volume_muted   = "131"   # muted rose-red  #af5f5f
+#
+# [[themes]]
+# name           = "dusk"
+# bar_bg         = "53"    # dark plum       #5f005f
+# bar_fg         = "218"   # pale pink       #ffafd7
+# accent         = "175"   # mauve           #d787af
+# progress_empty = "238"   # dark grey       #444444
+# secondary      = "139"   # muted mauve     #af87af
+# volume_unmuted = "114"   # soft green      #87d787
+# volume_muted   = "167"   # warm rose-red   #d75f5f

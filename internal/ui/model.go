@@ -26,8 +26,14 @@ const (
 type Model struct {
 	activeScreen screenID
 	showHelp     bool
+	showTheme    bool
 	width        int
 	height       int
+
+	// Theme state.
+	activeThemeIdx   int         // index into Themes
+	originalThemeIdx int         // theme at the time the modal opened (for revert)
+	themeModal       themeScreen // theme selector modal
 
 	// mpdClient is a pointer so the TCP connections are never copied.
 	mpdClient *mpd.Client
@@ -61,13 +67,20 @@ type NewParams struct {
 	SnapClients []snapcast.SnapClient
 	Playlist    []mpd.PlaylistEntry
 	NavEntries  []mpd.DirEntry // initial listing of the music library root
+	ThemeIdx    int            // index into Themes; 0 = default
 }
 
 // New creates a new root model with the Player Volume screen active.
 // Client pointers may be nil during tests; commands will be no-ops in that case.
 func New(p NewParams) Model {
+	idx := p.ThemeIdx
+	if idx < 0 || idx >= len(Themes) {
+		idx = 0
+	}
+	applyTheme(Themes[idx])
 	return Model{
 		activeScreen:   screenVolume,
+		activeThemeIdx: idx,
 		mpdClient:      p.MPD,
 		snapClient:     p.Snapcast,
 		playerStatus:   p.MPDState.Status,
@@ -164,14 +177,50 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
-		case "?":
-			m.showHelp = !m.showHelp
-			return m, nil
 		case "esc":
+			if m.showTheme {
+				applyTheme(Themes[m.originalThemeIdx])
+				m.activeThemeIdx = m.originalThemeIdx
+				m.showTheme = false
+				return m, nil
+			}
 			if m.showHelp {
 				m.showHelp = false
 				return m, nil
 			}
+		case "?":
+			if !m.showTheme {
+				m.showHelp = !m.showHelp
+				return m, nil
+			}
+		case "ctrl+t":
+			if !m.showHelp {
+				if m.showTheme {
+					// Second press: revert and close (same as Esc).
+					applyTheme(Themes[m.originalThemeIdx])
+					m.activeThemeIdx = m.originalThemeIdx
+					m.showTheme = false
+				} else {
+					m.originalThemeIdx = m.activeThemeIdx
+					m.themeModal = newThemeScreen(m.activeThemeIdx)
+					m.showTheme = true
+				}
+				return m, nil
+			}
+		}
+
+		// While the theme modal is open, handle Enter to confirm and
+		// delegate j/k to the modal; swallow everything else.
+		if m.showTheme {
+			if msg.String() == "enter" {
+				m.activeThemeIdx = m.themeModal.cursor
+				_ = SaveThemeState(Themes[m.activeThemeIdx].Name)
+				m.showTheme = false
+				return m, nil
+			}
+			m.themeModal, _ = m.themeModal.Update(msg)
+			m.activeThemeIdx = m.themeModal.cursor
+			return m, nil
 		}
 
 		// While the help modal is open, swallow all other key events.
@@ -273,6 +322,17 @@ func (m Model) View() string {
 
 	background := np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
 
+	// Pad the background to exactly m.height lines so the frame height is
+	// always consistent regardless of whether a modal overlay is open. Without
+	// this, closing a modal that extended beyond the background height leaves
+	// orphaned lines (including the bottom border) from the previous frame.
+	if m.height > 0 {
+		bgLines := strings.Count(background, "\n") + 1
+		if bgLines < m.height {
+			background += strings.Repeat("\n", m.height-bgLines)
+		}
+	}
+
 	if m.volume.showRename {
 		// Render the rename modal and overlay it centered on the background.
 		modalWidth := m.width - 4
@@ -283,6 +343,36 @@ func (m Model) View() string {
 			modalWidth = 30
 		}
 		modal := modalBorder("Rename Client", m.volume.renameModalContent(), modalWidth)
+		modalLines := strings.Count(modal, "\n") + 1
+		x := (m.width - modalWidth) / 2
+		y := (m.height - modalLines) / 2
+		if x < 0 {
+			x = 0
+		}
+		if y < 0 {
+			y = 0
+		}
+		return placeOverlay(x, y, modal, background)
+	}
+
+	if m.showTheme {
+		// Modal width must fit the longest theme name (with cursor prefix)
+		// and the hint line at the bottom.
+		const hintLine = "  [enter] confirm  [esc] cancel"
+		modalWidth := len(hintLine)
+		for _, t := range Themes {
+			if w := 2 + len(t.Name); w > modalWidth { // 2 for "▶ " prefix
+				modalWidth = w
+			}
+		}
+		modalWidth += 4 // border sides (2) + inner padding (2)
+		if m.width-4 < modalWidth {
+			modalWidth = m.width - 4
+		}
+		if modalWidth < 20 {
+			modalWidth = 20
+		}
+		modal := modalBorder("Theme", m.themeModal.View(), modalWidth)
 		modalLines := strings.Count(modal, "\n") + 1
 		x := (m.width - modalWidth) / 2
 		y := (m.height - modalLines) / 2
