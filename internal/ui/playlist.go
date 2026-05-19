@@ -1,12 +1,27 @@
 package ui
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"ghac/internal/mpd"
+)
+
+// bulkEditThreshold is the minimum number of songs that must be affected for a
+// playlist edit operation to require confirmation. Operations on more songs
+// than this threshold prompt the user with y/n before executing.
+const bulkEditThreshold = 50
+
+// playlistConfirmKind identifies the bulk-edit operation awaiting y/n confirmation.
+type playlistConfirmKind int
+
+const (
+	playlistConfirmNone   playlistConfirmKind = iota
+	playlistConfirmRemove                     // x pressed with > bulkEditThreshold songs
+	playlistConfirmClear                      // X always requires confirmation
 )
 
 // playlistScreen is the Playlist Control screen. It displays the MPD
@@ -17,6 +32,9 @@ type playlistScreen struct {
 	entries    []mpd.PlaylistEntry
 	currentPos int         // playlist position of currently-playing song; -1 if none
 	mc         *mpd.Client // may be nil in tests; commands become no-ops
+	// confirmation prompt state (zero value = no pending confirmation)
+	confirmMsg     string              // non-empty = awaiting y/n; shown at bottom of View()
+	confirmPending playlistConfirmKind // action to execute on 'y'
 }
 
 func newPlaylistScreen(mc *mpd.Client, entries []mpd.PlaylistEntry, currentPos int) playlistScreen {
@@ -30,10 +48,13 @@ func newPlaylistScreen(mc *mpd.Client, entries []mpd.PlaylistEntry, currentPos i
 
 // withEntries returns a copy with the playlist replaced, selection cleared,
 // cursor clamped, and current playing position updated atomically.
+// Any pending confirmation is dismissed because the song count is now stale.
 func (s playlistScreen) withEntries(entries []mpd.PlaylistEntry, currentPos int) playlistScreen {
 	s.entries = entries
 	s.currentPos = currentPos
 	s.selected = make(map[int]bool)
+	s.confirmMsg = ""
+	s.confirmPending = playlistConfirmNone
 	if len(entries) == 0 {
 		s.cursor = 0
 	} else if s.cursor >= len(entries) {
@@ -65,6 +86,33 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 	case mpd.MsgPlaylistChanged:
 		return s.withEntries(msg.Entries, s.currentPos), nil
 	case tea.KeyMsg:
+		// While a confirmation is pending capturesAllInput() returns true, so
+		// global handlers (screen switch, play/pause, etc.) have already been
+		// bypassed. Only y/n/esc are meaningful here; all other keys are dropped.
+		if s.confirmPending != playlistConfirmNone {
+			switch msg.String() {
+			case "y":
+				pending := s.confirmPending
+				s.confirmMsg = ""
+				s.confirmPending = playlistConfirmNone
+				switch pending {
+				case playlistConfirmRemove:
+					s = s.removeSongs()
+				case playlistConfirmClear:
+					if s.mc != nil {
+						_ = s.mc.Clear()
+					}
+					s.entries = nil
+					s.selected = make(map[int]bool)
+					s.cursor = 0
+				}
+			case "n", "esc":
+				s.confirmMsg = ""
+				s.confirmPending = playlistConfirmNone
+			}
+			break
+		}
+
 		wasPendingG, wasPendingF, lc := s.capturePending()
 		s.listCursor = lc
 
@@ -108,14 +156,19 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 		case "ctrl+k":
 			s = s.moveSong(-1)
 		case "x":
-			s = s.removeSongs()
-		case "X":
-			if s.mc != nil {
-				_ = s.mc.Clear()
+			toRemove := s.collectRemovePositions()
+			if len(toRemove) > bulkEditThreshold {
+				s.confirmMsg = fmt.Sprintf("Remove %d songs? [y/n]", len(toRemove))
+				s.confirmPending = playlistConfirmRemove
+			} else {
+				s = s.removeSongs()
 			}
-			s.entries = nil
-			s.selected = make(map[int]bool)
-			s.cursor = 0
+		case "X":
+			if len(s.entries) == 0 {
+				break
+			}
+			s.confirmMsg = fmt.Sprintf("Clear all %d songs? [y/n]", len(s.entries))
+			s.confirmPending = playlistConfirmClear
 		case "enter":
 			if s.cursor < len(s.entries) && s.mc != nil {
 				_ = s.mc.PlayAt(s.cursor)
@@ -125,23 +178,32 @@ func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 	return s, nil
 }
 
-// removeSongs deletes selected songs (or the cursor song if none selected)
-// from MPD and updates local state optimistically. The server confirms via
-// MsgPlaylistChanged.
-func (s playlistScreen) removeSongs() playlistScreen {
+// collectRemovePositions returns the playlist positions that would be deleted
+// when x is pressed: all selected positions (if any selection exists), or just
+// the cursor position. Returns nil when the playlist is empty.
+func (s playlistScreen) collectRemovePositions() []int {
 	if len(s.entries) == 0 {
-		return s
+		return nil
 	}
-
-	var toRemove []int
 	if len(s.selected) > 0 {
+		toRemove := make([]int, 0, len(s.selected))
 		for pos := range s.selected {
 			if pos < len(s.entries) {
 				toRemove = append(toRemove, pos)
 			}
 		}
-	} else {
-		toRemove = []int{s.cursor}
+		return toRemove
+	}
+	return []int{s.cursor}
+}
+
+// removeSongs deletes selected songs (or the cursor song if none selected)
+// from MPD and updates local state optimistically. The server confirms via
+// MsgPlaylistChanged.
+func (s playlistScreen) removeSongs() playlistScreen {
+	toRemove := s.collectRemovePositions()
+	if len(toRemove) == 0 {
+		return s
 	}
 
 	// Sort descending so each deletion does not shift the positions of
@@ -208,19 +270,24 @@ func (s playlistScreen) moveSong(delta int) playlistScreen {
 }
 
 func (s playlistScreen) View() string {
-	if len(s.entries) == 0 {
-		return stylePlaceholder.Render("Playlist is empty")
-	}
-
-	vh := s.viewportHeight()
-	end := s.offset + vh
-	if end > len(s.entries) {
-		end = len(s.entries)
-	}
-
 	var b strings.Builder
-	for i := s.offset; i < end; i++ {
-		b.WriteString(s.renderRow(i, s.entries[i]))
+
+	if len(s.entries) == 0 {
+		b.WriteString(stylePlaceholder.Render("Playlist is empty"))
+	} else {
+		vh := s.viewportHeight()
+		end := s.offset + vh
+		if end > len(s.entries) {
+			end = len(s.entries)
+		}
+		for i := s.offset; i < end; i++ {
+			b.WriteString(s.renderRow(i, s.entries[i]))
+			b.WriteString("\n")
+		}
+	}
+
+	if s.confirmMsg != "" {
+		b.WriteString(styleRowActive.Render(s.confirmMsg))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -276,9 +343,11 @@ func entryDisplayName(e mpd.PlaylistEntry) string {
 
 // screen interface implementation.
 
-func (s playlistScreen) update(msg tea.Msg) (screen, tea.Cmd)                                { return s.Update(msg) }
-func (s playlistScreen) hasPendingF() bool                                                    { return s.pendingF }
-func (s playlistScreen) capturesAllInput() bool                                               { return false }
-func (s playlistScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) { return }
-func (s playlistScreen) tabTitle() string                                                      { return "2:Playlist" }
-func (s playlistScreen) screenTitle() string                                                   { return "Playlist Control" }
+func (s playlistScreen) update(msg tea.Msg) (screen, tea.Cmd) { return s.Update(msg) }
+func (s playlistScreen) hasPendingF() bool                    { return s.pendingF }
+func (s playlistScreen) capturesAllInput() bool               { return s.confirmPending != playlistConfirmNone }
+func (s playlistScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) {
+	return
+}
+func (s playlistScreen) tabTitle() string    { return "2:Playlist" }
+func (s playlistScreen) screenTitle() string { return "Playlist Control" }

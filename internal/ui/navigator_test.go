@@ -370,33 +370,88 @@ func TestNavSelectionPersistsOnCursorMove(t *testing.T) {
 
 func TestNavEnqueueCursorWithNoClient(t *testing.T) {
 	// nil client: enqueue should clear selection without panicking.
+	// Entry 0 is a directory, so enter always requires confirmation first.
 	s := newTestNavigatorScreen()
-	s = pressNavKey(s, " ")           // select entry 0
-	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	// Selection should be cleared after enqueue.
+	s = pressNavKey(s, " ")                                                // select entry 0 (rock/, dir)
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})                        // triggers dir confirmation
+	if s.confirmPending == navConfirmNone {
+		t.Fatal("expected confirm prompt when enqueuing a directory")
+	}
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")}) // confirm
 	if len(s.selected) != 0 {
-		t.Errorf("selection len = %d, want 0 after enter with nil client", len(s.selected))
+		t.Errorf("selection len = %d, want 0 after confirming enqueue with nil client", len(s.selected))
 	}
 }
 
 func TestNavEnqueueSelectedClearsSelection(t *testing.T) {
+	// Entries 0 (rock/) and 1 (jazz/) are directories → confirmation required.
 	s := newTestNavigatorScreen()
 	s = pressNavKey(s, " ") // select entry 0
 	s = pressNavKey(s, "j")
 	s = pressNavKey(s, " ") // select entry 1
 	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if s.confirmPending == navConfirmNone {
+		t.Fatal("expected confirm prompt when enqueuing directories")
+	}
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
 	if len(s.selected) != 0 {
-		t.Error("selection should be cleared after enter")
+		t.Error("selection should be cleared after confirming enqueue")
 	}
 }
 
 func TestNavEnqueueCursorWhenNothingSelected(t *testing.T) {
-	// Verify enqueue uses cursor when selected is empty (no panic, no client).
+	// Cursor on jazz/ (dir) with nothing selected — enters confirm mode.
 	s := newTestNavigatorScreen()
-	s = pressNavKey(s, "j") // cursor=1
+	s = pressNavKey(s, "j") // cursor=1 (jazz/)
 	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if s.confirmPending == navConfirmNone {
+		t.Fatal("entering a directory with enter should require confirmation")
+	}
 	if len(s.selected) != 0 {
-		t.Error("selection should be empty after enter")
+		t.Error("selection should be empty (nothing was selected)")
+	}
+}
+
+func TestNavEnqueueFileCursorNoConfirm(t *testing.T) {
+	// Cursor on a single file (< 50) → executes immediately with nil client.
+	s := newTestNavigatorScreen()
+	s = pressNavKey(s, "j")
+	s = pressNavKey(s, "j") // cursor=2 (song.flac, a file)
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if s.confirmPending != navConfirmNone {
+		t.Error("single file enqueue should not require confirmation")
+	}
+}
+
+func TestNavEnqueueDirShowsConfirmMsg(t *testing.T) {
+	s := newTestNavigatorScreen() // cursor=0 (rock/)
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	view := s.View()
+	if !strings.Contains(view, "[y/n]") {
+		t.Errorf("view should show '[y/n]' prompt when enqueuing a directory, got: %q", view)
+	}
+}
+
+func TestNavEnqueueDirCancelledWithN(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s = pressNavKey(s, " ") // select rock/
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	if s.confirmPending != navConfirmNone {
+		t.Error("confirmPending should be cleared after n")
+	}
+	if len(s.selected) != 1 {
+		t.Error("selection should be unchanged after cancelling")
+	}
+}
+
+func TestNavEnqueueDirCancelledWithEsc(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s = pressNavKey(s, " ") // select rock/
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if s.confirmPending != navConfirmNone {
+		t.Error("confirmPending should be cleared after esc")
 	}
 }
 

@@ -250,6 +250,17 @@ the viewport height.
   last entry.
 - `X` clears the entire playlist and stops playback.
 
+**Confirmation prompts:**
+
+- `x` with more than 50 songs to remove shows an inline
+  `[y/n]` prompt at the bottom of the screen before executing.
+  The prompt states the exact count (e.g. `Remove 73 songs?
+  [y/n]`).
+- `X` always shows a confirmation regardless of playlist
+  size (e.g. `Clear all 120 songs? [y/n]`).
+- `y` executes, `n` or `Esc` cancels. All other keys are
+  swallowed while the prompt is visible.
+
 ### 4.3 Library Navigator (Screen 3)
 
 Browses the MPD music library using its directory structure
@@ -336,6 +347,9 @@ Selected entries are marked with a `*` prefix character.
 - When a song appears in the playlist multiple times, all
   occurrences are removed.
 - After removal the selection is cleared.
+- If more than 50 playlist positions would be removed, an
+  inline `[y/n]` prompt appears before executing
+  (e.g. `Remove 73 songs from playlist? [y/n]`).
 
 **Enqueue behavior:**
 
@@ -346,6 +360,19 @@ Selected entries are marked with a `*` prefix character.
 - Enqueuing a directory adds all songs within it recursively
   (handled by MPD).
 - Enqueued songs are appended to the end of the MPD playlist.
+
+**Enqueue confirmation prompts:**
+
+- If any selected entry (or the cursor entry) is a directory,
+  `enter` always shows an inline `[y/n]` prompt before
+  enqueuing (e.g. `Add 2 directories to playlist? [y/n]`).
+- If the selection contains only files and the count exceeds
+  50, a prompt appears (e.g. `Add 73 songs to playlist?
+  [y/n]`).
+- Mixed directory+file selections always prompt, showing the
+  total entry count (e.g. `Add 5 entries to playlist? [y/n]`).
+- `y` executes, `n` or `Esc` cancels. All other keys are
+  swallowed while the prompt is visible.
 
 ### 4.4 Help Modal
 
@@ -443,11 +470,7 @@ the application.
 ```
 
 Global keys active on every screen: `p` play/pause, `z` toggle
-<<<<<<< HEAD
 random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens, `ctrl+t` theme,
-=======
-random, `q` quit, `Ctrl-C` quit, `1`/`2`/`3` switch screens,
->>>>>>> main
 `?` help.
 
 ## 7. Edge Cases
