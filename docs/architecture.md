@@ -47,19 +47,23 @@ injected into this loop as messages via Go channels.
 ghac/
 ├── cmd/
 │   └── ghac/
-│       └── main.go                       # Entry point: config, connect, run
+│       └── main.go                          # Entry point: config, connect, run
 ├── internal/
 │   ├── config/
-│   │   └── config.go                     # TOML parsing, validation
+│   │   ├── config.go                        # TOML parsing, validation
+│   │   └── config_test.go                   # Unit tests for config parsing
 │   ├── mpd/
-│   │   ├── client.go                     # MPD connection, commands
-│   │   └── messages.go                   # Bubble Tea messages from MPD
+│   │   ├── client.go                        # MPD connection, commands
+│   │   ├── messages.go                      # Bubble Tea messages from MPD
+│   │   └── client_integration_test.go       # Integration tests (build tag)
 │   ├── snapcast/
-│   │   ├── client.go                     # JSON-RPC TCP client, commands
-│   │   ├── messages.go                   # Bubble Tea messages from SnapCast
-│   │   └── client_integration_test.go    # Integration tests (build tag)
+│   │   ├── client.go                        # JSON-RPC TCP client, commands
+│   │   ├── messages.go                      # Bubble Tea messages from SnapCast
+│   │   └── client_integration_test.go       # Integration tests (build tag)
 │   └── ui/
-│       ├── model.go           # Root model, screen routing, screen border
+│       ├── model.go           # Root model, screen interface, key dispatch, layout
+│       ├── keyhandlers.go     # Chain-of-responsibility global key handlers
+│       ├── listcursor.go      # Shared list navigation (cursor, viewport, selection)
 │       ├── nowplaying.go      # Now-playing bar component
 │       ├── styles.go          # Shared lipgloss styles (color vars, reassigned by applyTheme)
 │       ├── theme.go           # Theme type, applyTheme, XDG state I/O; embeds themes.toml
@@ -68,7 +72,14 @@ ghac/
 │       ├── volume.go          # Player Volume screen (SnapCast clients)
 │       ├── playlist.go        # Playlist Control screen
 │       ├── navigator.go       # Library Navigator screen (library browser)
-│       └── help.go            # Help screen
+│       ├── help.go            # Help screen
+│       ├── model_test.go      # Root model unit tests
+│       ├── volume_test.go     # Volume screen unit tests
+│       ├── playlist_test.go   # Playlist screen unit tests
+│       ├── navigator_test.go  # Navigator screen unit tests
+│       ├── help_test.go       # Help screen unit tests
+│       ├── nowplaying_test.go # Now-playing bar unit tests
+│       └── integration_test.go # UI integration tests
 ├── docs/
 │   ├── requirements.md
 │   ├── design.md
@@ -176,12 +187,17 @@ The root model (`internal/ui/model.go`) owns:
 
 - The active screen identifier (a `screenID` enum/int; three
   values: `screenVolume`, `screenPlaylist`, `screenNavigator`).
+- `screens []screen` — an ordered slice of all screen sub-models
+  accessed by index. Adding a new screen requires only appending
+  to this slice in `New()`.
 - `showHelp bool` — when true, a help modal is composited over
-  the active screen via `placeOverlay()`. The active screen never
+  the active screen via `overlayModal()`. The active screen never
   changes when help opens; `?` and `Esc` toggle this flag.
+- `showTheme bool` — when true, the theme selector modal is
+  composited. Mutually exclusive with `showHelp`.
 - Terminal dimensions (`width`, `height`).
-- Sub-models for each screen (`volume`, `playlist`, `navigator`,
-  `help`).
+- A separate `help helpScreen` sub-model (not in `screens`
+  because help is a modal overlay, not a peer screen).
 - Pointers to the MPD and SnapCast clients (for issuing
   commands).
 - Shared player state: `playerStatus`, `currentSong`, `elapsed`,
@@ -190,39 +206,130 @@ The root model (`internal/ui/model.go`) owns:
 
 The root model's `Update` method handles:
 
-1. `tea.WindowSizeMsg` — stores dimensions and propagates width
-   and height to the navigator screen.
-2. `MsgPlayerState` — updates player state fields, updates the
-   playlist screen's current position, re-subscribes to idle.
-3. `MsgPlaylistChanged` — updates the playlist screen's entries,
-   updates the navigator screen's in-playlist set, re-subscribes
-   to idle.
+1. `tea.WindowSizeMsg` — stores dimensions; calls
+   `broadcastToScreens()` to propagate the message to all screens.
+2. `MsgPlayerState` — updates player state fields; calls
+   `broadcastToScreens()`, then re-subscribes to idle.
+3. `MsgPlaylistChanged` — calls `broadcastToScreens()`, then
+   re-subscribes to idle.
 4. `MsgTick` — increments elapsed time by 1 second when playing,
    re-subscribes to tick.
 5. `mpd.MsgError` / `snapcast.MsgError` — stores error and quits.
-6. `tea.KeyMsg` — checks `volume.showRename` first; when true,
-   keys are delegated directly to the volume screen without
-   processing global bindings (same guard pattern as
-   `showHelp`). Otherwise handles global keys (screen
-   switching, play/pause, quit) and delegates remaining keys to
-   the active screen's sub-model via
-   `delegateToActiveScreen()`.
+6. `tea.KeyMsg` — runs the ordered `keyHandlers` chain (see 6.2).
+   The first handler that returns `handled=true` wins; remaining
+   keys fall through to `delegateToActiveScreen()`.
 
-### 6.2 Screen Sub-Models
+`broadcastToScreens(msg)` delivers a message to every screen's
+`update` method. Commands returned by screens during a broadcast
+are discarded — backend-subscription commands are owned by the
+root model.
 
-Each screen is a struct with `Update` and `View` methods:
+`overlayModal(title, content, minW, maxW, bg)` builds a bordered
+modal and composites it centered over the background using
+`placeOverlay()`. Width is clamped to `[minW, maxW]` and further
+bounded by terminal width minus 4 columns of margin.
+
+`borderBox(title, content, width, fallbackWidth)` renders a
+single-line Unicode box (┌ / │ / └) with the title embedded in
+the top edge. Used for both the screen border and modal borders.
+
+`tabStripView()` renders a tab bar showing all screens (from
+`screens[i].tabTitle()`) with the active one highlighted and
+inactive ones dimmed. The help entry (`?:Help`) is always
+appended as an inactive tab.
+
+### 6.2 Key Handler Chain (`keyhandlers.go`)
+
+Global key handling uses a chain-of-responsibility pattern. The
+root `Update` method iterates over `keyHandlers []keyHandler` in
+order; each handler returns `(Model, tea.Cmd, handled bool)`. The
+first handler that returns `handled=true` short-circuits the chain.
 
 ```go
-func (s screenType) Update(msg tea.Msg) (screenType, tea.Cmd)
-func (s screenType) View() string
+type keyHandler func(m Model, msg tea.KeyMsg) (Model, tea.Cmd, bool)
 ```
 
-Screens do not import each other. They receive state they need
-from the root model or via messages. Each screen's `View()`
-returns content only — no title or border. The root model wraps
-it with `screenBorder()`.
+Handlers in order:
 
-### 6.3 Now-Playing Component
+| Handler              | Condition / Action                                       |
+| -------------------- | -------------------------------------------------------- |
+| `handleQuit`         | `q` / `ctrl+c` — always quit                             |
+| `handleRenameModal`  | Active screen `capturesAllInput()` — delegate entirely   |
+| `handleEsc`          | `esc` — close theme or help modal; revert theme on close |
+| `handleHelpToggle`   | `?` (not in theme modal) — toggle help                   |
+| `handleThemeToggle`  | `ctrl+t` (not in help modal) — open/close theme modal    |
+| `handleThemeModal`   | Theme modal open — forward to modal; `enter` confirms    |
+| `handleHelpModal`    | Help modal open — swallow all keys                       |
+| `handlePendingF`     | Active screen `hasPendingF()` — delegate to screen       |
+| `handleMediaKeys`    | `p` (play/pause), `z` (random toggle)                    |
+| `handleScreenSwitch` | `1`/`2`/`3` — set `activeScreen`                         |
+
+Adding a new global binding requires only appending a new function
+to the `keyHandlers` slice — no existing handler code changes.
+
+### 6.3 Screen Interface
+
+Each screen implements the `screen` interface:
+
+```go
+type screen interface {
+    update(tea.Msg) (screen, tea.Cmd)
+    View() string
+    hasPendingF() bool
+    capturesAllInput() bool
+    activeModal() (title, content string, minWidth, maxWidth int, ok bool)
+    tabTitle() string
+    screenTitle() string
+}
+```
+
+- `update` handles messages and returns an updated `screen` and
+  optional command. Screens do not import each other.
+- `View()` returns content only — no title or border. The root
+  model wraps it with `borderBox()`.
+- `hasPendingF()` — true when the screen is mid f\<letter\>
+  fast-navigation; the key handler chain delegates the next key
+  directly to the screen to prevent global handlers stealing it.
+- `capturesAllInput()` — true when the screen has an open text-
+  input modal (e.g. the volume rename modal). All keys are routed
+  directly to the screen.
+- `activeModal()` — if the screen has a modal to display, returns
+  its title, content, and size constraints. The root model calls
+  `overlayModal()` with these values. Screens own their modal
+  rendering; the root model owns the overlay compositing.
+- `tabTitle()` / `screenTitle()` — display strings for the tab
+  bar and the border title respectively.
+
+### 6.4 Shared List Navigation (`listcursor.go`)
+
+`listCursor` is a value type embedded in every scrollable list
+screen (`playlistScreen`, `navigatorScreen`). It owns:
+
+- `cursor int` — index of the focused entry.
+- `offset int` — index of the first visible row (viewport top).
+- `height int` — current terminal height in rows.
+- `overhead int` — fixed lines consumed by chrome (now-playing
+  bar, tab strip, border, extras); set at construction time.
+- `pendingG bool` / `pendingF bool` — multi-key sequence state.
+- `selected map[int]bool` — selection set (indices of selected
+  entries).
+
+Key methods (all return a new `listCursor` — pure value semantics):
+
+| Method                              | Effect                                        |
+| ----------------------------------- | --------------------------------------------- |
+| `viewportHeight()`                  | `height - overhead`; defaults to 24           |
+| `clampOffset()`                     | Ensures cursor row is visible in viewport     |
+| `withHeight(h)`                     | Updates height and re-clamps                  |
+| `capturePending()`                  | Reads and clears `pendingG`/`pendingF` flags  |
+| `moveDown(n)` / `moveUp()`          | Move cursor ±1                                |
+| `moveToEnd(n)` / `moveToTop()`      | Jump to last/first entry                      |
+| `halfPageDown(n)` / `halfPageUp()`  | Jump ½ viewport                               |
+| `toggleSelected(i, n)`              | Toggle entry in selection set (copies map)    |
+| `clearSelection()`                  | Empty the selection set                       |
+| `jumpToLetter(r, getName, n)`       | Forward-wrap search by first character        |
+
+### 6.5 Now-Playing Component
 
 A stateless view function (`NowPlayingView` in `nowplaying.go`)
 that accepts a `PlayerState` struct and terminal width, returning
@@ -230,7 +337,7 @@ a rendered string. It is called once by `Model.View()` to
 compose the top bar; individual screen `View()` methods do not
 call it.
 
-### 6.4 Theme System
+### 6.6 Theme System
 
 Themes come from two sources:
 
@@ -252,8 +359,9 @@ no locking required.
 The theme selector is a modal overlay (`themeScreen` in
 `thememodal.go`) using the same `placeOverlay()` mechanism as
 the help modal. Cursor movement triggers `applyTheme()` immediately
-for live preview. The root model handles `Enter` (confirm + save)
-and `Esc` / `t` (revert to original). Theme state is persisted to
+for live preview. The `handleThemeModal` key handler (in
+`keyhandlers.go`) handles `Enter` (confirm + save) and `Esc` /
+`ctrl+t` (revert to original). Theme state is persisted to
 `$XDG_STATE_HOME/ghac/theme`. The active theme is also selectable
 via the `theme` config field or the `--theme` CLI flag; the flag
 takes highest priority.
@@ -352,14 +460,15 @@ in the package that owns them.
 - `errMsg` — set on fatal errors; when non-empty, `View()`
   renders only the error and `Update()` quits.
 - `showHelp bool` — when true, `View()` composites the help
-  modal over the active screen using `placeOverlay()`.
+  modal over the active screen using `overlayModal()`.
 - `showTheme bool` — when true, `View()` composites the theme
   selector modal. Mutually exclusive with `showHelp`.
 - `activeThemeIdx`, `originalThemeIdx` — current and pre-open
   theme indices used for live preview and revert on cancel.
 - `themeModal themeScreen` — the theme selector sub-model.
-- Sub-models for each screen (`volume`, `playlist`,
-  `navigator`, `help`).
+- `screens []screen` — ordered slice of all screen sub-models.
+- `help helpScreen` — help modal sub-model (not in `screens`;
+  rendered as an overlay, not a peer screen).
 - Pointers to the MPD and SnapCast clients.
 
 **MPD types** (`internal/mpd/messages.go`):
@@ -401,44 +510,39 @@ cursor index. It also owns three fields for the rename modal:
 `showRename bool` (whether the modal is open), `renameInput
 []rune` (the editable name buffer), and `renameCursor int`
 (the cursor position within the buffer). When `showRename` is
-true, `volumeScreen.Update()` handles only text-editing keys,
-`Ctrl-S` (save), and `Esc` (cancel). Updates when
-`MsgClientsUpdated` arrives via `withClients()`. Holds a
-pointer to the SnapCast client for issuing volume/mute/rename
-commands.
+true, `capturesAllInput()` returns `true`, routing all keys
+directly to the screen. `volumeScreen.update()` handles only
+text-editing keys, `Ctrl-S` (save), and `Esc` (cancel).
+`activeModal()` returns the rename modal title and content when
+`showRename` is true so the root model can call `overlayModal()`.
+Updates when `MsgClientsUpdated` arrives via `withClients()`.
+Holds a pointer to the SnapCast client for issuing
+volume/mute/rename commands.
 
-**Playlist screen** (`playlistScreen`) owns `[]PlaylistEntry`,
-a cursor index, a viewport `offset` (index of the first visible
-row), a `height` (terminal height in rows), a `map[int]bool`
-selection set, `pendingG` and `pendingF` booleans for two-key
-sequences (`gg` and `f<letter>`), and the `currentPos` of the
-playing song. `f<letter>` is handled in `Update` before the
-normal key switch: when `pendingF` is set the next keystroke is
-consumed; if it is a letter, `jumpToLetter` searches forward from
-`cursor+1` (wrapping) by the first character of
-`entryDisplayName()` and calls `clampOffset()` after a match.
-Non-letter keys cancel with no action. `removeSongs()` also calls
-`clampOffset()` after clamping the cursor so the viewport is
-correct following bulk removal. Updates when `MsgPlaylistChanged`
-arrives via `withEntries()`. The root model forwards
-`tea.WindowSizeMsg` height via `withHeight()`, matching the
-navigator pattern. Holds a pointer to the MPD client for issuing
-playlist commands.
+**Playlist screen** (`playlistScreen`) embeds `listCursor`
+(overhead=6) and owns `[]PlaylistEntry`, `currentPos` of the
+playing song, and confirmation prompt state (`confirmMsg string`,
+`confirmPending playlistConfirmKind`). Bulk edits above
+`bulkEditThreshold` (50 songs) require y/n confirmation before
+execution. `listCursor` provides cursor, viewport, selection, and
+`f<letter>` navigation. Updates when `MsgPlaylistChanged` arrives
+via `withEntries()`. `WindowSizeMsg` height is forwarded via
+`listCursor.withHeight()`. Holds a pointer to the MPD client for
+issuing playlist commands.
 
-**Navigator screen** (`navigatorScreen`) owns `[]DirEntry`,
-a cursor index, a viewport `offset`, `pendingG` and `pendingF`
-booleans for two-key sequences (`gg` and `f<letter>`), a
-`map[int]bool` selection set, a `map[string][]int` `inPlaylist`
-map (MPD URI → playlist positions), `currentPath` (current
-directory URI), and terminal `width`/`height`. `f<letter>` uses
-the same pending-key pattern as the playlist screen; `jumpToLetter`
-searches forward from `cursor+1` (wrapping) by the first character
-of `entry.Name` and calls `clampOffset()` after a match. The
-entry list updates synchronously when the user navigates
-directories (calling `ListInfo` directly from the `Update`
-method). The `inPlaylist` map updates from `MsgPlaylistChanged`
-via `withPlaylist()`. Holds a pointer to the MPD client for
-browsing and enqueue commands.
+**Navigator screen** (`navigatorScreen`) embeds `listCursor`
+(overhead=7) and owns `[]DirEntry`, a `map[string][]int`
+`inPlaylist` map (MPD URI → playlist positions, supporting
+duplicates), `currentPath` (current directory URI), terminal
+`width`, and confirmation prompt state (`confirmMsg string`,
+`confirmPending navConfirmKind`). Bulk enqueue/remove operations
+above `bulkEditThreshold` require y/n confirmation. `listCursor`
+provides cursor, viewport, selection, and `f<letter>` navigation.
+The entry list updates synchronously when the user navigates
+directories (calling `ListInfo` directly from `update`). The
+`inPlaylist` map updates from `MsgPlaylistChanged` via
+`withPlaylist()`. Holds a pointer to the MPD client for browsing
+and enqueue commands.
 
 ## 9. Configuration
 
@@ -531,19 +635,24 @@ mutex are the sole exception, as noted in 7.2).
 - **Backend clients**: integration tests against real or
   containerized MPD/SnapCast instances, gated behind a build
   tag (`//go:build integration`).
-- **UI logic**: unit tests on sub-model `Update` methods by
-  sending synthetic messages and asserting state changes.
+- **UI logic**: unit tests on screen `Update`/`update` methods
+  by sending synthetic messages and asserting state changes.
+  Test files mirror each screen file (`volume_test.go`,
+  `playlist_test.go`, `navigator_test.go`, `model_test.go`,
+  `help_test.go`, `nowplaying_test.go`).
+- **UI integration**: `integration_test.go` covers multi-screen
+  or cross-component interactions.
 - **Config**: table-driven unit tests for parsing and
-  validation.
+  validation (`config_test.go`).
 
 ## 13. Future Considerations
 
-These items are explicitly out of scope for the initial build
+These items are explicitly out of scope for the current build
 but inform architectural choices:
 
-- Additional MPD features (search, random mode, repeat).
+- Additional MPD features (search, repeat).
 - Configurable keybindings.
 - Mouse support.
 
-The screen interface and message-passing architecture
-accommodate these without structural changes.
+The `screen` interface and `keyHandlers` chain accommodate new
+screens and bindings without structural changes to existing code.
