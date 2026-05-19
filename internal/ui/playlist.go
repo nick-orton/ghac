@@ -13,22 +13,16 @@ import (
 // playback queue and supports cursor navigation, song selection, removal,
 // clear, and playback jump.
 type playlistScreen struct {
+	listCursor
 	entries    []mpd.PlaylistEntry
-	cursor     int
-	offset     int         // index of the first visible entry (viewport top)
-	pendingG   bool        // true after a single 'g' press, waiting for 'gg'
-	pendingF   bool        // true after 'f' press, waiting for letter to jump to
-	selected   map[int]bool
 	currentPos int         // playlist position of currently-playing song; -1 if none
-	height     int         // terminal height for viewport sizing
 	mc         *mpd.Client // may be nil in tests; commands become no-ops
 }
 
 func newPlaylistScreen(mc *mpd.Client, entries []mpd.PlaylistEntry, currentPos int) playlistScreen {
 	return playlistScreen{
+		listCursor: newListCursor(6),
 		entries:    entries,
-		cursor:     0,
-		selected:   make(map[int]bool),
 		currentPos: currentPos,
 		mc:         mc,
 	}
@@ -45,7 +39,8 @@ func (s playlistScreen) withEntries(entries []mpd.PlaylistEntry, currentPos int)
 	} else if s.cursor >= len(entries) {
 		s.cursor = len(entries) - 1
 	}
-	return s.clampOffset()
+	s.listCursor = s.clampOffset()
+	return s
 }
 
 // withCurrentPos returns a copy with the current playing position updated.
@@ -57,113 +52,57 @@ func (s playlistScreen) withCurrentPos(pos int) playlistScreen {
 // withHeight returns a copy with the terminal height updated and the viewport
 // offset re-clamped so the cursor remains visible.
 func (s playlistScreen) withHeight(h int) playlistScreen {
-	s.height = h
-	return s.clampOffset()
-}
-
-// viewportHeight returns the number of entry rows that fit on screen.
-// The overhead is: nowplaying(1) + sep(1) + tabstrip(1) + sep(1) +
-// border_top(1) + border_bottom(1) = 6 lines.
-func (s playlistScreen) viewportHeight() int {
-	if s.height < 10 {
-		return 24 // sensible default before the first WindowSizeMsg
-	}
-	h := s.height - 6
-	if h < 1 {
-		h = 1
-	}
-	return h
-}
-
-// clampOffset adjusts the viewport offset so the cursor is always visible.
-// Call this after any change to cursor, offset, or height.
-func (s playlistScreen) clampOffset() playlistScreen {
-	vh := s.viewportHeight()
-	if s.cursor < s.offset {
-		s.offset = s.cursor
-	} else if s.cursor >= s.offset+vh {
-		s.offset = s.cursor - vh + 1
-	}
-	if s.offset < 0 {
-		s.offset = 0
-	}
+	s.listCursor = s.listCursor.withHeight(h)
 	return s
 }
 
 func (s playlistScreen) Update(msg tea.Msg) (playlistScreen, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return s.withHeight(msg.Height), nil
+	case mpd.MsgPlayerState:
+		return s.withCurrentPos(msg.SongPos), nil
+	case mpd.MsgPlaylistChanged:
+		return s.withEntries(msg.Entries, s.currentPos), nil
 	case tea.KeyMsg:
-		// Capture and clear pending states before processing the key.
-		wasPendingG := s.pendingG
-		wasPendingF := s.pendingF
-		s.pendingG = false
-		s.pendingF = false
+		wasPendingG, wasPendingF, lc := s.capturePending()
+		s.listCursor = lc
 
-		// If f<key> sequence is in progress, consume this key as the jump
-		// target and do not pass it to the normal key handler.
+		// If f<key> is in progress consume this key as the jump target.
 		if wasPendingF {
 			key := msg.String()
 			if len(key) == 1 && key[0] >= 'a' && key[0] <= 'z' ||
 				len(key) == 1 && key[0] >= 'A' && key[0] <= 'Z' {
-				s = s.jumpToLetter(rune(strings.ToLower(key)[0]))
+				s.listCursor = s.jumpToLetter(
+					rune(strings.ToLower(key)[0]),
+					func(i int) string { return entryDisplayName(s.entries[i]) },
+					len(s.entries),
+				)
 			}
 			break
 		}
 
 		switch msg.String() {
 		case "j":
-			if s.cursor < len(s.entries)-1 {
-				s.cursor++
-				s = s.clampOffset()
-			}
+			s.listCursor = s.moveDown(len(s.entries))
 		case "k":
-			if s.cursor > 0 {
-				s.cursor--
-				s = s.clampOffset()
-			}
+			s.listCursor = s.moveUp()
 		case "G":
-			if len(s.entries) > 0 {
-				s.cursor = len(s.entries) - 1
-				s = s.clampOffset()
-			}
+			s.listCursor = s.moveToEnd(len(s.entries))
 		case "f":
 			s.pendingF = true
 		case "g":
 			if wasPendingG {
-				s.cursor = 0 // gg → top
-				s = s.clampOffset()
+				s.listCursor = s.moveToTop()
 			} else {
 				s.pendingG = true
 			}
 		case "ctrl+d":
-			s.cursor += s.viewportHeight() / 2
-			if s.cursor >= len(s.entries) {
-				s.cursor = len(s.entries) - 1
-			}
-			if s.cursor < 0 {
-				s.cursor = 0
-			}
-			s = s.clampOffset()
+			s.listCursor = s.halfPageDown(len(s.entries))
 		case "ctrl+u":
-			s.cursor -= s.viewportHeight() / 2
-			if s.cursor < 0 {
-				s.cursor = 0
-			}
-			s = s.clampOffset()
+			s.listCursor = s.halfPageUp()
 		case " ":
-			if s.cursor < len(s.entries) {
-				// Copy the map so mutation doesn't alias the caller's copy.
-				sel := make(map[int]bool, len(s.selected))
-				for k, v := range s.selected {
-					sel[k] = v
-				}
-				s.selected = sel
-				if s.selected[s.cursor] {
-					delete(s.selected, s.cursor)
-				} else {
-					s.selected[s.cursor] = true
-				}
-			}
+			s.listCursor = s.toggleSelected(s.cursor, len(s.entries))
 		case "ctrl+j":
 			s = s.moveSong(1)
 		case "ctrl+k":
@@ -233,8 +172,8 @@ func (s playlistScreen) removeSongs() playlistScreen {
 	} else if s.cursor >= len(s.entries) {
 		s.cursor = len(s.entries) - 1
 	}
-
-	return s.clampOffset()
+	s.listCursor = s.clampOffset()
+	return s
 }
 
 // moveSong moves the song under the cursor by delta positions (+1 = down,
@@ -265,23 +204,6 @@ func (s playlistScreen) moveSong(delta int) playlistScreen {
 		_ = s.mc.Move(s.cursor, target)
 	}
 	s.cursor = target
-	return s
-}
-
-// jumpToLetter moves the cursor to the next entry (wrapping around) whose
-// display name begins with r (already lower-cased). Searches forward from
-// cursor+1, wrapping to the top, skipping the cursor itself. No-op if no
-// match exists.
-func (s playlistScreen) jumpToLetter(r rune) playlistScreen {
-	n := len(s.entries)
-	for i := 1; i < n; i++ {
-		idx := (s.cursor + i) % n
-		name := strings.ToLower(entryDisplayName(s.entries[idx]))
-		if len(name) > 0 && rune(name[0]) == r {
-			s.cursor = idx
-			return s.clampOffset()
-		}
-	}
 	return s
 }
 
@@ -351,3 +273,12 @@ func entryDisplayName(e mpd.PlaylistEntry) string {
 	}
 	return e.File
 }
+
+// screen interface implementation.
+
+func (s playlistScreen) update(msg tea.Msg) (screen, tea.Cmd)                                { return s.Update(msg) }
+func (s playlistScreen) hasPendingF() bool                                                    { return s.pendingF }
+func (s playlistScreen) capturesAllInput() bool                                               { return false }
+func (s playlistScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) { return }
+func (s playlistScreen) tabTitle() string                                                      { return "2:Playlist" }
+func (s playlistScreen) screenTitle() string                                                   { return "Playlist Control" }

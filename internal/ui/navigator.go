@@ -13,25 +13,18 @@ import (
 // navigatorScreen is the Song Navigator screen. It browses the MPD music
 // library by directory structure and allows enqueuing songs and directories.
 type navigatorScreen struct {
+	listCursor
 	entries     []mpd.DirEntry
-	cursor      int
-	offset      int             // index of the first visible entry (viewport top)
-	pendingG    bool            // true after a single 'g' press, waiting for 'gg'
-	pendingF    bool            // true after 'f' press, waiting for letter to jump to
-	selected    map[int]bool
 	inPlaylist  map[string][]int // MPD URI → playlist positions (supports duplicates)
-	currentPath string          // MPD URI of the current directory; "" for root
-	width       int             // terminal width for right-aligned metadata
-	height      int             // terminal height for viewport sizing
-	mc          *mpd.Client     // may be nil in tests; commands become no-ops
+	currentPath string           // MPD URI of the current directory; "" for root
+	width       int              // terminal width for right-aligned metadata
+	mc          *mpd.Client      // may be nil in tests; commands become no-ops
 }
 
 func newNavigatorScreen(mc *mpd.Client, entries []mpd.DirEntry) navigatorScreen {
 	return navigatorScreen{
+		listCursor: newListCursor(7),
 		entries:    entries,
-		cursor:     0,
-		offset:     0,
-		selected:   make(map[int]bool),
 		inPlaylist: make(map[string][]int),
 		mc:         mc,
 	}
@@ -59,47 +52,19 @@ func (s navigatorScreen) withWidth(w int) navigatorScreen {
 // withHeight returns a copy with the terminal height updated and the viewport
 // offset re-clamped so the cursor remains visible.
 func (s navigatorScreen) withHeight(h int) navigatorScreen {
-	s.height = h
-	return s.clampOffset()
-}
-
-// viewportHeight returns the number of entry rows that fit on screen.
-// The overhead is: nowplaying(1) + sep(1) + tabstrip(1) + sep(1) +
-// border_top(1) + breadcrumb(1) + border_bottom(1) = 7 lines.
-func (s navigatorScreen) viewportHeight() int {
-	if s.height < 10 {
-		return 24 // sensible default before the first WindowSizeMsg
-	}
-	h := s.height - 7
-	if h < 1 {
-		h = 1
-	}
-	return h
-}
-
-// clampOffset adjusts the viewport offset so the cursor is always visible.
-// Call this after any change to cursor, offset, or height.
-func (s navigatorScreen) clampOffset() navigatorScreen {
-	vh := s.viewportHeight()
-	if s.cursor < s.offset {
-		s.offset = s.cursor
-	} else if s.cursor >= s.offset+vh {
-		s.offset = s.cursor - vh + 1
-	}
-	if s.offset < 0 {
-		s.offset = 0
-	}
+	s.listCursor = s.listCursor.withHeight(h)
 	return s
 }
 
 func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return s.withWidth(msg.Width).withHeight(msg.Height), nil
+	case mpd.MsgPlaylistChanged:
+		return s.withPlaylist(msg.Entries), nil
 	case tea.KeyMsg:
-		// Capture and clear pending states before processing the key.
-		wasPendingG := s.pendingG
-		wasPendingF := s.pendingF
-		s.pendingG = false
-		s.pendingF = false
+		wasPendingG, wasPendingF, lc := s.capturePending()
+		s.listCursor = lc
 
 		// If f<key> sequence is in progress, consume this key as the jump
 		// target and do not pass it to the normal key handler.
@@ -107,51 +72,34 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 			key := msg.String()
 			if len(key) == 1 && key[0] >= 'a' && key[0] <= 'z' ||
 				len(key) == 1 && key[0] >= 'A' && key[0] <= 'Z' {
-				s = s.jumpToLetter(rune(strings.ToLower(key)[0]))
+				s.listCursor = s.jumpToLetter(
+					rune(strings.ToLower(key)[0]),
+					func(i int) string { return s.entries[i].Name },
+					len(s.entries),
+				)
 			}
 			break
 		}
 
 		switch msg.String() {
 		case "j":
-			if s.cursor < len(s.entries)-1 {
-				s.cursor++
-				s = s.clampOffset()
-			}
+			s.listCursor = s.moveDown(len(s.entries))
 		case "k":
-			if s.cursor > 0 {
-				s.cursor--
-				s = s.clampOffset()
-			}
+			s.listCursor = s.moveUp()
 		case "G":
-			if len(s.entries) > 0 {
-				s.cursor = len(s.entries) - 1
-				s = s.clampOffset()
-			}
+			s.listCursor = s.moveToEnd(len(s.entries))
 		case "f":
 			s.pendingF = true
 		case "g":
 			if wasPendingG {
-				s.cursor = 0 // gg → top
-				s = s.clampOffset()
+				s.listCursor = s.moveToTop()
 			} else {
 				s.pendingG = true
 			}
 		case "ctrl+d":
-			s.cursor += s.viewportHeight() / 2
-			if s.cursor >= len(s.entries) {
-				s.cursor = len(s.entries) - 1
-			}
-			if s.cursor < 0 {
-				s.cursor = 0
-			}
-			s = s.clampOffset()
+			s.listCursor = s.halfPageDown(len(s.entries))
 		case "ctrl+u":
-			s.cursor -= s.viewportHeight() / 2
-			if s.cursor < 0 {
-				s.cursor = 0
-			}
-			s = s.clampOffset()
+			s.listCursor = s.halfPageUp()
 		case "l":
 			if s.cursor < len(s.entries) && s.entries[s.cursor].IsDir {
 				s = s.enterDir(s.entries[s.cursor].Path)
@@ -159,19 +107,7 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 		case "h":
 			s = s.goUp()
 		case " ":
-			if s.cursor < len(s.entries) {
-				// Copy the map so mutation does not alias the caller's copy.
-				sel := make(map[int]bool, len(s.selected))
-				for k, v := range s.selected {
-					sel[k] = v
-				}
-				s.selected = sel
-				if s.selected[s.cursor] {
-					delete(s.selected, s.cursor)
-				} else {
-					s.selected[s.cursor] = true
-				}
-			}
+			s.listCursor = s.toggleSelected(s.cursor, len(s.entries))
 		case "x":
 			s = s.removeFromPlaylist()
 		case "enter":
@@ -199,7 +135,7 @@ func (s navigatorScreen) removeFromPlaylist() navigatorScreen {
 			}
 		}
 	} else if s.cursor < len(s.entries) && !s.entries[s.cursor].IsDir {
-		uris = []string{s.entries[s.cursor].Path}
+		uris = append(uris, s.entries[s.cursor].Path)
 	}
 
 	// Collect all playlist positions for the target URIs.
@@ -219,7 +155,7 @@ func (s navigatorScreen) removeFromPlaylist() navigatorScreen {
 		}
 	}
 
-	s.selected = make(map[int]bool)
+	s.listCursor = s.clearSelection()
 	return s
 }
 
@@ -229,7 +165,7 @@ func (s navigatorScreen) enterDir(path string) navigatorScreen {
 	s.currentPath = path
 	s.cursor = 0
 	s.offset = 0
-	s.selected = make(map[int]bool)
+	s.listCursor = s.clearSelection()
 	return s
 }
 
@@ -244,7 +180,7 @@ func (s navigatorScreen) goUp() navigatorScreen {
 	parent := navParent(s.currentPath)
 	s.entries = s.fetchEntries(parent)
 	s.currentPath = parent
-	s.selected = make(map[int]bool)
+	s.listCursor = s.clearSelection()
 
 	// Find the directory we just came from and restore the cursor to it.
 	s.cursor = 0
@@ -256,7 +192,8 @@ func (s navigatorScreen) goUp() navigatorScreen {
 	}
 
 	s.offset = 0
-	return s.clampOffset()
+	s.listCursor = s.clampOffset()
+	return s
 }
 
 // enqueue adds selected entries (or the cursor entry when nothing is selected)
@@ -284,7 +221,7 @@ func (s navigatorScreen) enqueue() navigatorScreen {
 		}
 	}
 
-	s.selected = make(map[int]bool)
+	s.listCursor = s.clearSelection()
 	return s
 }
 
@@ -301,21 +238,6 @@ func (s navigatorScreen) fetchEntries(path string) []mpd.DirEntry {
 	return entries
 }
 
-// jumpToLetter moves the cursor to the next entry (wrapping around) whose
-// Name begins with r (already lower-cased). Searches forward from cursor+1,
-// wrapping to the top, skipping the cursor itself. No-op if no match exists.
-func (s navigatorScreen) jumpToLetter(r rune) navigatorScreen {
-	n := len(s.entries)
-	for i := 1; i < n; i++ {
-		idx := (s.cursor + i) % n
-		name := strings.ToLower(s.entries[idx].Name)
-		if len(name) > 0 && rune(name[0]) == r {
-			s.cursor = idx
-			return s.clampOffset()
-		}
-	}
-	return s
-}
 
 func (s navigatorScreen) View() string {
 	var b strings.Builder
@@ -440,3 +362,12 @@ func navBase(path string) string {
 	}
 	return path
 }
+
+// screen interface implementation.
+
+func (s navigatorScreen) update(msg tea.Msg) (screen, tea.Cmd)                              { return s.Update(msg) }
+func (s navigatorScreen) hasPendingF() bool                                                  { return s.pendingF }
+func (s navigatorScreen) capturesAllInput() bool                                             { return false }
+func (s navigatorScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) { return }
+func (s navigatorScreen) tabTitle() string                                                   { return "3:Library" }
+func (s navigatorScreen) screenTitle() string                                                { return "Library Navigator" }

@@ -299,11 +299,12 @@ func TestRootModelHandlesMsgPlaylistChanged(t *testing.T) {
 	updated, _ := m.Update(mpd.MsgPlaylistChanged{Entries: entries})
 	m = updated.(Model)
 
-	if len(m.playlist.entries) != 2 {
-		t.Fatalf("playlist.entries len = %d, want 2", len(m.playlist.entries))
+	pl := m.screens[screenPlaylist].(playlistScreen)
+	if len(pl.entries) != 2 {
+		t.Fatalf("playlist.entries len = %d, want 2", len(pl.entries))
 	}
-	if m.playlist.entries[0].Title != "Song A" {
-		t.Errorf("entries[0].Title = %q, want Song A", m.playlist.entries[0].Title)
+	if pl.entries[0].Title != "Song A" {
+		t.Errorf("entries[0].Title = %q, want Song A", pl.entries[0].Title)
 	}
 }
 
@@ -320,8 +321,8 @@ func TestRootModelMsgPlayerStateUpdatesSongPos(t *testing.T) {
 	if m.currentSongPos != 3 {
 		t.Errorf("currentSongPos = %d, want 3", m.currentSongPos)
 	}
-	if m.playlist.currentPos != 3 {
-		t.Errorf("playlist.currentPos = %d, want 3", m.playlist.currentPos)
+	if pl := m.screens[screenPlaylist].(playlistScreen); pl.currentPos != 3 {
+		t.Errorf("playlist.currentPos = %d, want 3", pl.currentPos)
 	}
 }
 

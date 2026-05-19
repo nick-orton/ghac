@@ -253,8 +253,8 @@ func TestIntegrationPlaylistOperations(t *testing.T) {
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
 	m = updated.(Model)
 
-	if len(m.playlist.entries) != len(after) {
-		t.Errorf("playlist.entries len = %d, want %d", len(m.playlist.entries), len(after))
+	if pl := m.screens[screenPlaylist].(playlistScreen); len(pl.entries) != len(after) {
+		t.Errorf("playlist.entries len = %d, want %d", len(pl.entries), len(after))
 	}
 }
 
@@ -264,11 +264,12 @@ func TestIntegrationVolumeOperations(t *testing.T) {
 	m, cleanup := connectTestModel(t)
 	defer cleanup()
 
-	if len(m.volume.clients) == 0 {
+	vs := m.screens[screenVolume].(volumeScreen)
+	if len(vs.clients) == 0 {
 		t.Skip("no SnapCast clients connected; skipping volume operations test")
 	}
 
-	originalVol := m.volume.clients[0].Volume
+	originalVol := vs.clients[0].Volume
 
 	// Restore volume on exit.
 	t.Cleanup(func() {

@@ -224,11 +224,12 @@ func TestRootModelHandlesMsgClientsUpdated(t *testing.T) {
 	// cmd should be nil because snapClient is nil in the test model.
 	_ = cmd
 
-	if len(m.volume.clients) != 1 {
-		t.Fatalf("volume.clients len = %d, want 1", len(m.volume.clients))
+	vs := m.screens[screenVolume].(volumeScreen)
+	if len(vs.clients) != 1 {
+		t.Fatalf("volume.clients len = %d, want 1", len(vs.clients))
 	}
-	if m.volume.clients[0].Volume != 42 {
-		t.Errorf("volume = %d, want 42", m.volume.clients[0].Volume)
+	if vs.clients[0].Volume != 42 {
+		t.Errorf("volume = %d, want 42", vs.clients[0].Volume)
 	}
 }
 

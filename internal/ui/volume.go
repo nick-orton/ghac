@@ -44,6 +44,8 @@ func (s volumeScreen) withClients(clients []snapcast.SnapClient) volumeScreen {
 
 func (s volumeScreen) Update(msg tea.Msg) (volumeScreen, tea.Cmd) {
 	switch msg := msg.(type) {
+	case snapcast.MsgClientsUpdated:
+		return s.withClients(msg.Clients), nil
 	case tea.KeyMsg:
 		if s.showRename {
 			return s.updateRename(msg)
@@ -271,4 +273,19 @@ func truncateName(s string, maxLen int) string {
 		return s
 	}
 	return string(runes[:maxLen-1]) + "…"
+}
+
+// screen interface implementation.
+
+func (s volumeScreen) update(msg tea.Msg) (screen, tea.Cmd) { return s.Update(msg) }
+func (s volumeScreen) hasPendingF() bool                    { return false }
+func (s volumeScreen) capturesAllInput() bool               { return s.showRename }
+func (s volumeScreen) tabTitle() string                     { return "1:Volume" }
+func (s volumeScreen) screenTitle() string                  { return "Player Volume" }
+
+func (s volumeScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) {
+	if !s.showRename {
+		return
+	}
+	return "Rename Client", s.renameModalContent(), 30, 50, true
 }

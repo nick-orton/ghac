@@ -12,7 +12,7 @@ import (
 	"ghac/internal/snapcast"
 )
 
-// screenID identifies which screen is currently active.
+// screenID identifies a screen by its index in Model.screens.
 type screenID int
 
 const (
@@ -20,6 +20,20 @@ const (
 	screenPlaylist
 	screenNavigator
 )
+
+// screen is implemented by every sub-screen. It lets the root model dispatch
+// messages, render tabs, and query screen state without a type switch.
+// Adding a new screen only requires implementing this interface and appending
+// the screen to the slice in New() — no other model.go changes needed.
+type screen interface {
+	update(tea.Msg) (screen, tea.Cmd)
+	View() string
+	hasPendingF() bool
+	capturesAllInput() bool
+	activeModal() (title, content string, minWidth, maxWidth int, ok bool)
+	tabTitle() string
+	screenTitle() string
+}
 
 // Model is the root Bubble Tea model. It owns all screen sub-models and
 // handles global key bindings (screen switching, play/pause, quit).
@@ -52,10 +66,9 @@ type Model struct {
 	// errMsg is set on fatal errors; View() shows it and Update() quits.
 	errMsg string
 
-	volume    volumeScreen
-	playlist  playlistScreen
-	navigator navigatorScreen
-	help      helpScreen
+	// screens holds the ordered sub-screens; activeScreen indexes into it.
+	screens []screen
+	help    helpScreen
 }
 
 // NewParams holds all dependencies and initial state for New(). Using a struct
@@ -89,10 +102,12 @@ func New(p NewParams) Model {
 		totalDuration:  p.MPDState.TotalDuration,
 		currentSongPos: p.MPDState.SongPos,
 		randomOn:       p.MPDState.Random,
-		volume:         newVolumeScreen(p.Snapcast, p.SnapClients),
-		playlist:       newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
-		navigator:      newNavigatorScreen(p.MPD, p.NavEntries).withPlaylist(p.Playlist),
-		help:           newHelpScreen(),
+		screens: []screen{
+			newVolumeScreen(p.Snapcast, p.SnapClients),
+			newPlaylistScreen(p.MPD, p.Playlist, p.MPDState.SongPos),
+			newNavigatorScreen(p.MPD, p.NavEntries).withPlaylist(p.Playlist),
+		},
+		help: newHelpScreen(),
 	}
 }
 
@@ -115,8 +130,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.navigator = m.navigator.withWidth(msg.Width).withHeight(msg.Height)
-		m.playlist = m.playlist.withHeight(msg.Height)
+		m = m.broadcastToScreens(msg)
 		return m, nil
 
 	case mpd.MsgPlayerState:
@@ -126,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.totalDuration = msg.TotalDuration
 		m.currentSongPos = msg.SongPos
 		m.randomOn = msg.Random
-		m.playlist = m.playlist.withCurrentPos(msg.SongPos)
+		m = m.broadcastToScreens(msg)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
@@ -134,8 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case mpd.MsgPlaylistChanged:
-		m.playlist = m.playlist.withEntries(msg.Entries, m.currentSongPos)
-		m.navigator = m.navigator.withPlaylist(msg.Entries)
+		m = m.broadcastToScreens(msg)
 		// Re-subscribe to the next idle event.
 		if m.mpdClient != nil {
 			return m, m.mpdClient.ListenIdle()
@@ -153,7 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case snapcast.MsgClientsUpdated:
-		m.volume = m.volume.withClients(msg.Clients)
+		m = m.broadcastToScreens(msg)
 		if m.snapClient != nil {
 			return m, m.snapClient.ListenNotifications()
 		}
@@ -164,101 +177,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyMsg:
-		// Global quit keys are always handled.
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		}
-
-		// While the rename modal is open, delegate all keys to the volume
-		// screen (which handles esc, ctrl+s, and text editing).
-		if m.volume.showRename {
-			return m.delegateToActiveScreen(msg)
-		}
-
-		switch msg.String() {
-		case "esc":
-			if m.showTheme {
-				applyTheme(Themes[m.originalThemeIdx])
-				m.activeThemeIdx = m.originalThemeIdx
-				m.showTheme = false
-				return m, nil
+		for _, handler := range keyHandlers {
+			if newM, cmd, handled := handler(m, msg); handled {
+				return newM, cmd
 			}
-			if m.showHelp {
-				m.showHelp = false
-				return m, nil
-			}
-		case "?":
-			if !m.showTheme {
-				m.showHelp = !m.showHelp
-				return m, nil
-			}
-		case "ctrl+t":
-			if !m.showHelp {
-				if m.showTheme {
-					// Second press: revert and close (same as Esc).
-					applyTheme(Themes[m.originalThemeIdx])
-					m.activeThemeIdx = m.originalThemeIdx
-					m.showTheme = false
-				} else {
-					m.originalThemeIdx = m.activeThemeIdx
-					m.themeModal = newThemeScreen(m.activeThemeIdx)
-					m.showTheme = true
-				}
-				return m, nil
-			}
-		}
-
-		// While the theme modal is open, handle Enter to confirm and
-		// delegate j/k to the modal; swallow everything else.
-		if m.showTheme {
-			if msg.String() == "enter" {
-				m.activeThemeIdx = m.themeModal.cursor
-				_ = SaveThemeState(Themes[m.activeThemeIdx].Name)
-				m.showTheme = false
-				return m, nil
-			}
-			m.themeModal, _ = m.themeModal.Update(msg)
-			m.activeThemeIdx = m.themeModal.cursor
-			return m, nil
-		}
-
-		// While the help modal is open, swallow all other key events.
-		if m.showHelp {
-			return m, nil
-		}
-
-		// If the active screen is waiting for a second key (f<letter>
-		// fast-navigation), forward ALL keys to it before global handlers
-		// can steal them (e.g. "p" for play/pause).
-		if m.activeScreenPendingF() {
-			return m.delegateToActiveScreen(msg)
-		}
-
-		switch msg.String() {
-		case "p":
-			if m.mpdClient != nil {
-				if m.playerStatus == "play" {
-					_ = m.mpdClient.Pause()
-				} else {
-					_ = m.mpdClient.Play()
-				}
-			}
-			return m, nil
-		case "z":
-			if m.mpdClient != nil {
-				_ = m.mpdClient.Random(!m.randomOn)
-			}
-			return m, nil
-		case "1":
-			m.activeScreen = screenVolume
-			return m, nil
-		case "2":
-			m.activeScreen = screenPlaylist
-			return m, nil
-		case "3":
-			m.activeScreen = screenNavigator
-			return m, nil
 		}
 	}
 
@@ -268,27 +190,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // activeScreenPendingF reports whether the active screen is mid f<letter>
 // fast-navigation sequence and needs to consume the next key itself.
 func (m Model) activeScreenPendingF() bool {
-	switch m.activeScreen {
-	case screenPlaylist:
-		return m.playlist.pendingF
-	case screenNavigator:
-		return m.navigator.pendingF
-	}
-	return false
+	return m.screens[m.activeScreen].hasPendingF()
 }
 
 // delegateToActiveScreen forwards a message to the currently active screen.
-func (m Model) delegateToActiveScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch m.activeScreen {
-	case screenVolume:
-		m.volume, cmd = m.volume.Update(msg)
-	case screenPlaylist:
-		m.playlist, cmd = m.playlist.Update(msg)
-	case screenNavigator:
-		m.navigator, cmd = m.navigator.Update(msg)
-	}
+func (m Model) delegateToActiveScreen(msg tea.Msg) (Model, tea.Cmd) {
+	s, cmd := m.screens[m.activeScreen].update(msg)
+	m.screens[m.activeScreen] = s
 	return m, cmd
+}
+
+// broadcastToScreens delivers msg to every screen's update method. Commands
+// returned by screens are discarded — backend-subscription commands are owned
+// by the root model. Use this for backend messages that screens need to
+// observe in order to keep their own state current.
+func (m Model) broadcastToScreens(msg tea.Msg) Model {
+	for i, s := range m.screens {
+		newS, _ := s.update(msg)
+		m.screens[i] = newS
+	}
+	return m
 }
 
 // View renders the current screen with the now-playing bar at the top.
@@ -310,17 +231,10 @@ func (m Model) View() string {
 	}
 	np := NowPlayingView(ps, m.width)
 
-	var title, content string
-	switch m.activeScreen {
-	case screenVolume:
-		title, content = "Player Volume", m.volume.View()
-	case screenPlaylist:
-		title, content = "Playlist Control", m.playlist.View()
-	case screenNavigator:
-		title, content = "Library Navigator", m.navigator.View()
-	}
+	title := m.screens[m.activeScreen].screenTitle()
+	content := m.screens[m.activeScreen].View()
 
-	background := np + "\n" + m.tabStripView() + "\n" + screenBorder(title, content, m.width)
+	background := np + "\n" + m.tabStripView() + "\n" + borderBox(title, content, m.width, 80)
 
 	// Pad the background to exactly m.height lines so the frame height is
 	// always consistent regardless of whether a modal overlay is open. Without
@@ -333,83 +247,51 @@ func (m Model) View() string {
 		}
 	}
 
-	if m.volume.showRename {
-		// Render the rename modal and overlay it centered on the background.
-		modalWidth := m.width - 4
-		if modalWidth > 50 {
-			modalWidth = 50
-		}
-		if modalWidth < 30 {
-			modalWidth = 30
-		}
-		modal := modalBorder("Rename Client", m.volume.renameModalContent(), modalWidth)
-		modalLines := strings.Count(modal, "\n") + 1
-		x := (m.width - modalWidth) / 2
-		y := (m.height - modalLines) / 2
-		if x < 0 {
-			x = 0
-		}
-		if y < 0 {
-			y = 0
-		}
-		return placeOverlay(x, y, modal, background)
+	if mTitle, mContent, minW, maxW, ok := m.screens[m.activeScreen].activeModal(); ok {
+		return m.overlayModal(mTitle, mContent, minW, maxW, background)
 	}
 
 	if m.showTheme {
-		// Modal width must fit the longest theme name (with cursor prefix)
-		// and the hint line at the bottom.
+		// Natural width: wide enough for the longest theme name and the hint line.
 		const hintLine = "  [enter] confirm  [esc] cancel"
-		modalWidth := len(hintLine)
+		naturalW := len(hintLine) + 4 // +4 for border sides and inner padding
 		for _, t := range Themes {
-			if w := 2 + len(t.Name); w > modalWidth { // 2 for "▶ " prefix
-				modalWidth = w
+			if w := 2 + len(t.Name) + 4; w > naturalW { // 2 for "▶ " prefix
+				naturalW = w
 			}
 		}
-		modalWidth += 4 // border sides (2) + inner padding (2)
-		if m.width-4 < modalWidth {
-			modalWidth = m.width - 4
-		}
-		if modalWidth < 20 {
-			modalWidth = 20
-		}
-		modal := modalBorder("Theme", m.themeModal.View(), modalWidth)
-		modalLines := strings.Count(modal, "\n") + 1
-		x := (m.width - modalWidth) / 2
-		y := (m.height - modalLines) / 2
-		if x < 0 {
-			x = 0
-		}
-		if y < 0 {
-			y = 0
-		}
-		return placeOverlay(x, y, modal, background)
+		return m.overlayModal("Theme", m.themeModal.View(), 20, naturalW, background)
 	}
 
-	if !m.showHelp {
-		return background
+	if m.showHelp {
+		return m.overlayModal("Help", m.help.View(), 20, 82, background)
 	}
 
-	// Render the help modal and overlay it centered on the background.
-	modalWidth := m.width - 4
-	if modalWidth > 82 {
-		modalWidth = 82
-	}
-	if modalWidth < 20 {
-		modalWidth = 20
-	}
-	modal := modalBorder("Help", m.help.View(), modalWidth)
+	return background
+}
 
-	modalLines := strings.Count(modal, "\n") + 1
-	x := (m.width - modalWidth) / 2
-	y := (m.height - modalLines) / 2
+// overlayModal builds a bordered modal and composites it centered over bg.
+// The modal width is clamped to [minW, maxW] and further bounded by the
+// terminal width minus 4 columns of margin.
+func (m Model) overlayModal(title, content string, minW, maxW int, bg string) string {
+	w := m.width - 4
+	if w > maxW {
+		w = maxW
+	}
+	if w < minW {
+		w = minW
+	}
+	modal := borderBox(title, content, w, 20)
+	lines := strings.Count(modal, "\n") + 1
+	x := (m.width - w) / 2
+	y := (m.height - lines) / 2
 	if x < 0 {
 		x = 0
 	}
 	if y < 0 {
 		y = 0
 	}
-
-	return placeOverlay(x, y, modal, background)
+	return placeOverlay(x, y, modal, bg)
 }
 
 // placeOverlay composites fg over bg, positioning the top-left corner of fg
@@ -465,20 +347,19 @@ func placeOverlay(x, y int, fg, bg string) string {
 	return b.String()
 }
 
-// screenBorder wraps content in a single-line box with the screen title
-// embedded in the top edge:
+// borderBox wraps content in a single-line box with the title embedded in the
+// top edge:
 //
 //	┌─ Title ──────────────────────────────────────┐
 //	│ content line                                 │
 //	└──────────────────────────────────────────────┘
 //
-// width is the full terminal width; a minimum of 80 is enforced.
-func screenBorder(title, content string, width int) string {
+// If width is less than 4 it is replaced with fallbackWidth.
+func borderBox(title, content string, width, fallbackWidth int) string {
 	if width < 4 {
-		width = 80
+		width = fallbackWidth
 	}
 
-	// Top edge: ┌─ Title ─────...─┐
 	styledTitle := styleTitle.Render(title)
 	titleSeg := "─ " + styledTitle + " "
 	fillLen := width - 2 - lipgloss.Width(titleSeg)
@@ -486,11 +367,8 @@ func screenBorder(title, content string, width int) string {
 		fillLen = 1
 	}
 	top := "┌" + titleSeg + strings.Repeat("─", fillLen) + "┐"
-
-	// Bottom edge: └──────...──┘
 	bottom := "└" + strings.Repeat("─", width-2) + "┘"
 
-	// Inner content area: width minus two border chars and one space pad each side.
 	innerWidth := width - 4
 
 	lines := strings.Split(content, "\n")
@@ -516,68 +394,18 @@ func screenBorder(title, content string, width int) string {
 	return b.String()
 }
 
-// modalBorder wraps content in a box at the given width, with the title
-// embedded in the top edge. Uses the same box-drawing characters as
-// screenBorder but operates at modal (not terminal) width.
-func modalBorder(title, content string, width int) string {
-	if width < 4 {
-		width = 20
-	}
-
-	styledTitle := styleTitle.Render(title)
-	titleSeg := "─ " + styledTitle + " "
-	fillLen := width - 2 - lipgloss.Width(titleSeg)
-	if fillLen < 1 {
-		fillLen = 1
-	}
-	top := "┌" + titleSeg + strings.Repeat("─", fillLen) + "┐"
-	bottom := "└" + strings.Repeat("─", width-2) + "┘"
-
-	innerWidth := width - 4
-
-	lines := strings.Split(content, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-
-	var b strings.Builder
-	b.WriteString(top)
-	b.WriteByte('\n')
-	for _, line := range lines {
-		pad := innerWidth - lipgloss.Width(line)
-		if pad < 0 {
-			pad = 0
-		}
-		b.WriteString("│ ")
-		b.WriteString(line)
-		b.WriteString(strings.Repeat(" ", pad))
-		b.WriteString(" │\n")
-	}
-	b.WriteString(bottom)
-	return b.String()
-}
-
 // tabStripView renders the tab bar showing all screens with the active one
 // highlighted via bold+underline and inactive ones dimmed.
 func (m Model) tabStripView() string {
-	type tab struct {
-		id    screenID
-		label string
-	}
-	tabs := []tab{
-		{screenVolume, "1:Volume"},
-		{screenPlaylist, "2:Playlist"},
-		{screenNavigator, "3:Library"},
-	}
-	parts := make([]string, len(tabs)+1)
-	for i, t := range tabs {
-		if t.id == m.activeScreen {
-			parts[i] = styleTabActive.Render(t.label)
+	parts := make([]string, len(m.screens)+1)
+	for i, s := range m.screens {
+		if screenID(i) == m.activeScreen {
+			parts[i] = styleTabActive.Render(s.tabTitle())
 		} else {
-			parts[i] = styleTabInactive.Render(t.label)
+			parts[i] = styleTabInactive.Render(s.tabTitle())
 		}
 	}
 	// ?:Help is always inactive — help is a modal overlay, not a peer screen.
-	parts[len(tabs)] = styleTabInactive.Render("?:Help")
+	parts[len(m.screens)] = styleTabInactive.Render("?:Help")
 	return strings.Join(parts, "  ")
 }
