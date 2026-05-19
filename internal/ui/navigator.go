@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -8,6 +9,15 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"ghac/internal/mpd"
+)
+
+// navConfirmKind identifies the bulk-edit operation awaiting y/n confirmation.
+type navConfirmKind int
+
+const (
+	navConfirmNone    navConfirmKind = iota
+	navConfirmRemove                 // x pressed with > bulkEditThreshold playlist positions
+	navConfirmEnqueue                // enter pressed when a directory is in the selection
 )
 
 // navigatorScreen is the Song Navigator screen. It browses the MPD music
@@ -19,6 +29,9 @@ type navigatorScreen struct {
 	currentPath string           // MPD URI of the current directory; "" for root
 	width       int              // terminal width for right-aligned metadata
 	mc          *mpd.Client      // may be nil in tests; commands become no-ops
+	// confirmation prompt state (zero value = no pending confirmation)
+	confirmMsg     string         // non-empty = awaiting y/n; shown at bottom of View()
+	confirmPending navConfirmKind // action to execute on 'y'
 }
 
 func newNavigatorScreen(mc *mpd.Client, entries []mpd.DirEntry) navigatorScreen {
@@ -63,6 +76,28 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 	case mpd.MsgPlaylistChanged:
 		return s.withPlaylist(msg.Entries), nil
 	case tea.KeyMsg:
+		// While a confirmation is pending capturesAllInput() returns true, so
+		// global handlers have already been bypassed. Only y/n/esc are
+		// meaningful; all other keys are dropped.
+		if s.confirmPending != navConfirmNone {
+			switch msg.String() {
+			case "y":
+				pending := s.confirmPending
+				s.confirmMsg = ""
+				s.confirmPending = navConfirmNone
+				switch pending {
+				case navConfirmRemove:
+					s = s.removeFromPlaylist()
+				case navConfirmEnqueue:
+					s = s.enqueue()
+				}
+			case "n", "esc":
+				s.confirmMsg = ""
+				s.confirmPending = navConfirmNone
+			}
+			break
+		}
+
 		wasPendingG, wasPendingF, lc := s.capturePending()
 		s.listCursor = lc
 
@@ -109,24 +144,33 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 		case " ":
 			s.listCursor = s.toggleSelected(s.cursor, len(s.entries))
 		case "x":
-			s = s.removeFromPlaylist()
+			positions := s.collectRemovePositions()
+			if len(positions) > bulkEditThreshold {
+				s.confirmMsg = fmt.Sprintf("Remove %d songs from playlist? [y/n]", len(positions))
+				s.confirmPending = navConfirmRemove
+			} else {
+				s = s.removeFromPlaylist()
+			}
 		case "enter":
-			s = s.enqueue()
+			if msg, needs := s.enqueueConfirmMsg(); needs {
+				s.confirmMsg = msg
+				s.confirmPending = navConfirmEnqueue
+			} else {
+				s = s.enqueue()
+			}
 		}
 	}
 	return s, nil
 }
 
-// removeFromPlaylist deletes from the MPD playlist every queued file that is
-// currently selected (or the cursor entry if nothing is selected). Directories
-// and files not in the playlist are silently skipped. Positions are deleted in
-// descending order so earlier positions are not shifted by later removals.
-// Clears the selection after deleting.
-func (s navigatorScreen) removeFromPlaylist() navigatorScreen {
+// collectRemovePositions returns all playlist positions that would be deleted
+// when x is pressed: positions for selected queued files, or for the cursor
+// file if nothing is selected. Directories and unqueued files yield no
+// positions.
+func (s navigatorScreen) collectRemovePositions() []int {
 	if len(s.entries) == 0 {
-		return s
+		return nil
 	}
-
 	var uris []string
 	if len(s.selected) > 0 {
 		for i := range s.selected {
@@ -137,12 +181,70 @@ func (s navigatorScreen) removeFromPlaylist() navigatorScreen {
 	} else if s.cursor < len(s.entries) && !s.entries[s.cursor].IsDir {
 		uris = append(uris, s.entries[s.cursor].Path)
 	}
-
-	// Collect all playlist positions for the target URIs.
 	var positions []int
 	for _, uri := range uris {
 		positions = append(positions, s.inPlaylist[uri]...)
 	}
+	return positions
+}
+
+// enqueueConfirmMsg returns (message, true) when the pending enqueue operation
+// requires confirmation: any directory in the selection always requires
+// confirmation; file-only selections require it when the count exceeds
+// bulkEditThreshold. Returns ("", false) when no confirmation is needed.
+func (s navigatorScreen) enqueueConfirmMsg() (string, bool) {
+	if len(s.entries) == 0 {
+		return "", false
+	}
+	var targets []int
+	if len(s.selected) > 0 {
+		for i := range s.selected {
+			if i < len(s.entries) {
+				targets = append(targets, i)
+			}
+		}
+	} else if s.cursor < len(s.entries) {
+		targets = []int{s.cursor}
+	}
+	if len(targets) == 0 {
+		return "", false
+	}
+
+	var dirs, files int
+	for _, i := range targets {
+		if s.entries[i].IsDir {
+			dirs++
+		} else {
+			files++
+		}
+	}
+
+	if dirs > 0 {
+		if files == 0 {
+			noun := "directories"
+			if dirs == 1 {
+				noun = "directory"
+			}
+			return fmt.Sprintf("Add %d %s to playlist? [y/n]", dirs, noun), true
+		}
+		total := dirs + files
+		return fmt.Sprintf("Add %d entries to playlist? [y/n]", total), true
+	}
+
+	if files > bulkEditThreshold {
+		return fmt.Sprintf("Add %d songs to playlist? [y/n]", files), true
+	}
+
+	return "", false
+}
+
+// removeFromPlaylist deletes from the MPD playlist every queued file that is
+// currently selected (or the cursor entry if nothing is selected). Directories
+// and files not in the playlist are silently skipped. Positions are deleted in
+// descending order so earlier positions are not shifted by later removals.
+// Clears the selection after deleting.
+func (s navigatorScreen) removeFromPlaylist() navigatorScreen {
+	positions := s.collectRemovePositions()
 	if len(positions) == 0 {
 		return s
 	}
@@ -238,7 +340,6 @@ func (s navigatorScreen) fetchEntries(path string) []mpd.DirEntry {
 	return entries
 }
 
-
 func (s navigatorScreen) View() string {
 	var b strings.Builder
 
@@ -252,17 +353,20 @@ func (s navigatorScreen) View() string {
 
 	if len(s.entries) == 0 {
 		b.WriteString(stylePlaceholder.Render("Directory is empty"))
-		return b.String()
+	} else {
+		vh := s.viewportHeight()
+		end := s.offset + vh
+		if end > len(s.entries) {
+			end = len(s.entries)
+		}
+		for i := s.offset; i < end; i++ {
+			b.WriteString(s.renderRow(i, s.entries[i]))
+			b.WriteString("\n")
+		}
 	}
 
-	vh := s.viewportHeight()
-	end := s.offset + vh
-	if end > len(s.entries) {
-		end = len(s.entries)
-	}
-
-	for i := s.offset; i < end; i++ {
-		b.WriteString(s.renderRow(i, s.entries[i]))
+	if s.confirmMsg != "" {
+		b.WriteString(styleRowActive.Render(s.confirmMsg))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -365,9 +469,11 @@ func navBase(path string) string {
 
 // screen interface implementation.
 
-func (s navigatorScreen) update(msg tea.Msg) (screen, tea.Cmd)                              { return s.Update(msg) }
-func (s navigatorScreen) hasPendingF() bool                                                  { return s.pendingF }
-func (s navigatorScreen) capturesAllInput() bool                                             { return false }
-func (s navigatorScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) { return }
-func (s navigatorScreen) tabTitle() string                                                   { return "3:Library" }
-func (s navigatorScreen) screenTitle() string                                                { return "Library Navigator" }
+func (s navigatorScreen) update(msg tea.Msg) (screen, tea.Cmd) { return s.Update(msg) }
+func (s navigatorScreen) hasPendingF() bool                    { return s.pendingF }
+func (s navigatorScreen) capturesAllInput() bool               { return s.confirmPending != navConfirmNone }
+func (s navigatorScreen) activeModal() (title, content string, minWidth, maxWidth int, ok bool) {
+	return
+}
+func (s navigatorScreen) tabTitle() string    { return "3:Library" }
+func (s navigatorScreen) screenTitle() string { return "Library Navigator" }

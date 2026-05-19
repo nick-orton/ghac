@@ -209,14 +209,142 @@ func TestPlaylistRemoveClearsSelection(t *testing.T) {
 
 // --- Clear (X) ---
 
-func TestPlaylistClearAll(t *testing.T) {
+func TestPlaylistClearAllRequiresConfirm(t *testing.T) {
+	s := newTestPlaylistScreen() // 4 entries
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	// X should show a confirmation prompt, not clear immediately.
+	if s.confirmPending == playlistConfirmNone {
+		t.Fatal("X should set a pending confirmation, not execute immediately")
+	}
+	if s.confirmMsg == "" {
+		t.Error("confirmMsg should be non-empty after X")
+	}
+	if len(s.entries) != 4 {
+		t.Errorf("entries len = %d, want 4 (unchanged) before confirmation", len(s.entries))
+	}
+}
+
+func TestPlaylistClearAllConfirmedWithY(t *testing.T) {
 	s := newTestPlaylistScreen()
 	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
 	if len(s.entries) != 0 {
-		t.Errorf("entries len = %d, want 0 after X", len(s.entries))
+		t.Errorf("entries len = %d, want 0 after X+y", len(s.entries))
 	}
 	if s.cursor != 0 {
-		t.Errorf("cursor = %d, want 0 after X", s.cursor)
+		t.Errorf("cursor = %d, want 0 after X+y", s.cursor)
+	}
+	if s.confirmPending != playlistConfirmNone {
+		t.Error("confirmPending should be cleared after y")
+	}
+}
+
+func TestPlaylistClearAllCancelledWithN(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	if len(s.entries) != 4 {
+		t.Errorf("entries len = %d, want 4 (unchanged) after X+n", len(s.entries))
+	}
+	if s.confirmPending != playlistConfirmNone {
+		t.Error("confirmPending should be cleared after n")
+	}
+}
+
+func TestPlaylistClearAllCancelledWithEsc(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if len(s.entries) != 4 {
+		t.Errorf("entries len = %d, want 4 (unchanged) after X+esc", len(s.entries))
+	}
+	if s.confirmPending != playlistConfirmNone {
+		t.Error("confirmPending should be cleared after esc")
+	}
+}
+
+func TestPlaylistClearAllNoop_EmptyPlaylist(t *testing.T) {
+	s := newPlaylistScreen(nil, nil, -1)
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	if s.confirmPending != playlistConfirmNone {
+		t.Error("X on empty playlist should not set a confirmation")
+	}
+}
+
+// --- Remove (x): confirmation threshold ---
+
+func TestPlaylistRemoveManyShowsConfirm(t *testing.T) {
+	// 52 entries selected — above the 50-song threshold.
+	entries := makePlaylistEntries(60)
+	s := newPlaylistScreen(nil, entries, -1)
+	for i := 0; i < 52; i++ {
+		s.selected[i] = true
+	}
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if s.confirmPending == playlistConfirmNone {
+		t.Fatal("x with 52 selected songs should set a pending confirmation")
+	}
+	if len(s.entries) != 60 {
+		t.Errorf("entries should be unchanged before confirmation, got %d", len(s.entries))
+	}
+}
+
+func TestPlaylistRemoveFewExecutesImmediately(t *testing.T) {
+	// 50 entries selected — at threshold, not above; executes immediately.
+	entries := makePlaylistEntries(60)
+	s := newPlaylistScreen(nil, entries, -1)
+	for i := 0; i < 50; i++ {
+		s.selected[i] = true
+	}
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if s.confirmPending != playlistConfirmNone {
+		t.Error("x with exactly 50 selected songs should execute immediately (threshold is >50)")
+	}
+	if len(s.entries) != 10 {
+		t.Errorf("entries len = %d, want 10 after removing 50 of 60", len(s.entries))
+	}
+}
+
+func TestPlaylistRemoveManyConfirmedWithY(t *testing.T) {
+	entries := makePlaylistEntries(60)
+	s := newPlaylistScreen(nil, entries, -1)
+	for i := 0; i < 52; i++ {
+		s.selected[i] = true
+	}
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	if s.confirmPending != playlistConfirmNone {
+		t.Error("confirmPending should be cleared after y")
+	}
+	if len(s.entries) != 8 {
+		t.Errorf("entries len = %d, want 8 after confirming removal of 52", len(s.entries))
+	}
+}
+
+// --- Confirm prompt swallows unrelated keys ---
+
+func TestPlaylistConfirmSwallowsUnrelatedKeys(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	// Pressing j while confirming should not move the cursor.
+	cursorBefore := s.cursor
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if s.cursor != cursorBefore {
+		t.Error("cursor should not move while a confirmation is pending")
+	}
+	if s.confirmPending == playlistConfirmNone {
+		t.Error("confirmation should still be pending after unrelated key")
+	}
+}
+
+// --- View renders confirm prompt ---
+
+func TestPlaylistViewShowsConfirmMsg(t *testing.T) {
+	s := newTestPlaylistScreen()
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
+	view := s.View()
+	if !strings.Contains(view, "[y/n]") {
+		t.Errorf("view should contain '[y/n]' prompt when confirming, got: %q", view)
 	}
 }
 

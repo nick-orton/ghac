@@ -183,7 +183,33 @@ help modal.
 text-editing, `Ctrl-S`, and `Esc` are swallowed. `Ctrl-R` is a
 no-op when no clients are connected.
 
-## 7. Playlist Control Screen
+## 7. Bulk-Edit Confirmation Prompt
+
+When a bulk playlist edit exceeds the confirmation threshold (more than
+50 songs affected, or any directory being enqueued), an inline prompt
+appears as the last line of the screen's content area, inside the
+border box:
+
+```text
+Remove 73 songs? [y/n]
+Add 2 directories to playlist? [y/n]
+Clear all 120 songs? [y/n]
+```
+
+**Styling:** `styleRowActive` (bold, no color) — visually distinct
+from regular list rows without introducing a new color code.
+
+**Interaction:** `y` executes the operation; `n` or `Esc` cancels.
+All other keys are swallowed while the prompt is visible (the screen
+returns `capturesAllInput() = true`). `q` and `Ctrl-C` are not
+swallowed because `handleQuit` fires before `capturesAllInput` in the
+key-handler chain.
+
+**No modal overlay** — the prompt is a single line appended to the
+screen's `View()` output, not a centered overlay. This keeps the
+interaction lightweight for simple y/n decisions.
+
+## 8. Playlist Control Screen
 
 Each song row follows this prefix layout (5 characters):
 
@@ -222,7 +248,7 @@ Fast-jump (`f<letter>`) and song removal (`x`) also trigger
 `clampOffset()` so the viewport is always correct after those
 operations.
 
-## 8. Library Navigator Screen
+## 9. Library Navigator Screen
 
 ### 8.1 Breadcrumb Line
 
@@ -295,7 +321,7 @@ the entire row string.
 
 **Empty state:** `stylePlaceholder` renders "Directory is empty".
 
-## 9. Help Modal
+## 10. Help Modal
 
 Key bindings are displayed in `internal/ui/help.go` organized into
 named sections. Help appears as a centered modal overlay; the
@@ -336,7 +362,7 @@ per-screen in tab order). The Player Volume section includes
 keybinding hint but is never rendered as active. Help is a modal
 overlay, not a peer screen.
 
-## 10. Typography Conventions
+## 11. Typography Conventions
 
 | Element           | Characters to use                              |
 | ----------------- | ---------------------------------------------- |
@@ -354,7 +380,7 @@ Do not use ASCII hyphens (`-`) as separators in displayed text, or
 render correctly on any UTF-8 terminal, which is the minimum
 requirement for running ghac.
 
-## 11. Terminal Compatibility Assumptions
+## 12. Terminal Compatibility Assumptions
 
 - UTF-8 encoding: required.
 - 256-color support: required (color codes above 15 are used).
@@ -363,7 +389,7 @@ requirement for running ghac.
   `width == 0` or `width < 4`).
 - Alt-screen mode: always active; the TUI owns the full display.
 
-## 12. Adding a New Screen
+## 13. Adding a New Screen
 
 1. Create `internal/ui/<name>.go` with a struct implementing
    `Update(tea.Msg) (<ScreenType>, tea.Cmd)` and `View() string`.
