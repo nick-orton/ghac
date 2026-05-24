@@ -26,7 +26,7 @@ misses.
 | Playlist Control   | Yes      |
 | Library Navigator  | Yes      |
 | Theme modal        | Yes      |
-| Help modal         | No (modal border unchanged in legacy mode) |
+| Help modal         | Yes (full-screen in legacy mode, no border) |
 | Theme selector     | No (legacy mode is not a selectable theme) |
 
 ---
@@ -52,9 +52,12 @@ misses.
    visual distinction.
 6. The now-playing bar uses reverse-video (`Reverse(true)`) instead of a
    background color to remain visually distinct.
-7. Legacy mode is never selectable via the theme modal and does not appear
+7. In legacy mode, the help overlay is rendered full-screen (now-playing
+   bar + tab strip + `-- Help --` header + content) rather than as a
+   centered modal with box-drawing borders.
+8. Legacy mode is never selectable via the theme modal and does not appear
    in the theme list. It is an independent rendering mode, not a theme.
-8. In legacy mode, the `ctrl+t` theme modal still opens but applies
+9. In legacy mode, the `ctrl+t` theme modal still opens but applies
    colors only if the active theme is later confirmed on a capable
    terminal — the legacy style overrides any selected theme's colors
    while active.

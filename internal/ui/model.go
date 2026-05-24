@@ -270,6 +270,9 @@ func (m Model) View() string {
 	}
 
 	if m.showHelp {
+		if legacyMode {
+			return np + "\n" + m.tabStripView() + "\n" + legacyHeader("Help", m.help.View())
+		}
 		return m.overlayModal("Help", m.help.View(), 20, 82, background)
 	}
 
