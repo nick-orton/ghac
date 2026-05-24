@@ -4,7 +4,7 @@ PREFIX?=	/usr/local
 BINDIR?=	${PREFIX}/bin
 
 build:
-	go build -o ghac ./cmd/ghac
+	go build -buildvcs=false -o ghac ./cmd/ghac
 
 test:
 	go test ./...
