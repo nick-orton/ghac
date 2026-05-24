@@ -228,7 +228,7 @@ func (s volumeScreen) View() string {
 func (s volumeScreen) renderRow(i int, client snapcast.SnapClient) string {
 	cursor := "  "
 	if i == s.cursor {
-		cursor = "▶ "
+		cursor = symCursor
 	}
 
 	name := fmt.Sprintf("%-20s", truncateName(client.Name, 20))
@@ -258,9 +258,9 @@ func renderVolumeBar(pct int, muted bool) string {
 	var b strings.Builder
 	for i := 0; i < volumeBarWidth; i++ {
 		if i < filled {
-			b.WriteString(fillStyle.Render("█"))
+			b.WriteString(fillStyle.Render(symFilled))
 		} else {
-			b.WriteString(styleProgressEmpty.Render("░"))
+			b.WriteString(styleProgressEmpty.Render(symEmpty))
 		}
 	}
 	return b.String()
@@ -272,7 +272,7 @@ func truncateName(s string, maxLen int) string {
 	if len(runes) <= maxLen {
 		return s
 	}
-	return string(runes[:maxLen-1]) + "…"
+	return string(runes[:maxLen-1]) + symEllipsis
 }
 
 // screen interface implementation.

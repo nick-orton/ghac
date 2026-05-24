@@ -24,10 +24,10 @@ type PlayerState struct {
 // and falls back to filename when no metadata is available.
 func (p PlayerState) displayName() string {
 	if p.Title != "" && p.Artist != "" && p.Album != "" {
-		return p.Title + " – " + p.Artist + " – " + p.Album
+		return p.Title + symSeparator + p.Artist + symSeparator + p.Album
 	}
 	if p.Title != "" && p.Artist != "" {
-		return p.Title + " – " + p.Artist
+		return p.Title + symSeparator + p.Artist
 	}
 	if p.Title != "" {
 		return p.Title
@@ -57,9 +57,9 @@ func NowPlayingView(state PlayerState, width int) string {
 		return styleNowPlaying.Render(line)
 	}
 
-	stateIcon := "▶"
+	stateIcon := symPlay
 	if state.Status == "pause" {
-		stateIcon = "⏸"
+		stateIcon = symPause
 	}
 
 	name := state.displayName()
@@ -93,7 +93,7 @@ func progressBar(elapsed, total time.Duration, width int) string {
 		return ""
 	}
 	if total <= 0 {
-		return strings.Repeat("░", width)
+		return strings.Repeat(symEmpty, width)
 	}
 	ratio := float64(elapsed) / float64(total)
 	if ratio < 0 {
@@ -104,8 +104,8 @@ func progressBar(elapsed, total time.Duration, width int) string {
 	}
 	filled := int(ratio * float64(width))
 	empty := width - filled
-	return styleProgressFill.Render(strings.Repeat("█", filled)) +
-		styleProgressEmpty.Render(strings.Repeat("░", empty))
+	return styleProgressFill.Render(strings.Repeat(symFilled, filled)) +
+		styleProgressEmpty.Render(strings.Repeat(symEmpty, empty))
 }
 
 // formatTime formats a duration as m:ss (e.g. "3:07"). Handles durations
@@ -133,5 +133,5 @@ func truncate(s string, maxRunes int) string {
 	if maxRunes <= 1 {
 		return string(runes[:maxRunes])
 	}
-	return string(runes[:maxRunes-1]) + "…"
+	return string(runes[:maxRunes-1]) + symEllipsis
 }

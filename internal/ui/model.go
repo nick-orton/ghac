@@ -234,7 +234,13 @@ func (m Model) View() string {
 	title := m.screens[m.activeScreen].screenTitle()
 	content := m.screens[m.activeScreen].View()
 
-	background := np + "\n" + m.tabStripView() + "\n" + borderBox(title, content, m.width, 80)
+	var screenBox string
+	if legacyMode {
+		screenBox = legacyHeader(title, content)
+	} else {
+		screenBox = borderBox(title, content, m.width, 80)
+	}
+	background := np + "\n" + m.tabStripView() + "\n" + screenBox
 
 	// Pad the background to exactly m.height lines so the frame height is
 	// always consistent regardless of whether a modal overlay is open. Without
@@ -256,7 +262,7 @@ func (m Model) View() string {
 		const hintLine = "  [enter] confirm  [esc] cancel"
 		naturalW := len(hintLine) + 4 // +4 for border sides and inner padding
 		for _, t := range Themes {
-			if w := 2 + len(t.Name) + 4; w > naturalW { // 2 for "▶ " prefix
+			if w := len([]rune(symCursor)) + len(t.Name) + 4; w > naturalW {
 				naturalW = w
 			}
 		}
@@ -345,6 +351,16 @@ func placeOverlay(x, y int, fg, bg string) string {
 		b.WriteString(ansi.TruncateLeft(bgLine, x+fgWidth, ""))
 	}
 	return b.String()
+}
+
+// legacyHeader renders a screen title without box-drawing borders, for use on
+// terminals that cannot display Unicode box characters:
+//
+//	-- Player Volume --
+//	content line
+func legacyHeader(title, content string) string {
+	header := styleTitle.Render("-- " + title + " --")
+	return header + "\n" + content
 }
 
 // borderBox wraps content in a single-line box with the title embedded in the

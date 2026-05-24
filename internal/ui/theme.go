@@ -10,6 +10,54 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// legacyMode is true when the application is running on a terminal that
+// cannot render Unicode or 256-color sequences. Set via EnableLegacyMode().
+var legacyMode bool
+
+// IsLegacyTerminal reports whether the $TERM environment variable indicates
+// a terminal that cannot render Unicode block-drawing characters or 256
+// colors. Used for auto-detection at startup.
+func IsLegacyTerminal() bool {
+	term := strings.ToLower(os.Getenv("TERM"))
+	if term == "" {
+		return false
+	}
+	for _, prefix := range []string{
+		"vt220", "vt100", "vt102", "vt52",
+		"ansi", "dumb",
+		"cons25", "cons35", "cons43", "cons50", "cons60",
+		"wsvt25", "wsvt50",
+		"cygwin",
+	} {
+		if term == prefix || strings.HasPrefix(term, prefix+"-") {
+			return true
+		}
+	}
+	return false
+}
+
+// EnableLegacyMode switches the UI to ASCII symbols, borderless screen
+// rendering, and a black-and-white style. Call once at startup before
+// constructing the root model when running on a legacy terminal.
+func EnableLegacyMode() {
+	legacyMode = true
+	UseASCIISymbols()
+	applyLegacyTheme()
+}
+
+// applyLegacyTheme sets all color-bearing style variables to modifier-only
+// equivalents (bold, faint, reverse-video) suitable for any terminal.
+func applyLegacyTheme() {
+	styleNowPlaying = lipgloss.NewStyle().Bold(true).Reverse(true)
+	styleProgressFill = lipgloss.NewStyle()
+	styleProgressEmpty = lipgloss.NewStyle().Faint(true)
+	styleTime = lipgloss.NewStyle()
+	styleVolumeBarFillUnmuted = lipgloss.NewStyle()
+	styleVolumeBarFillMuted = lipgloss.NewStyle().Faint(true)
+	stylePlaylistCurrent = lipgloss.NewStyle().Bold(true)
+	styleNavMeta = lipgloss.NewStyle().Faint(true)
+}
+
 //go:embed themes.toml
 var themesData string
 

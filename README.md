@@ -47,7 +47,11 @@ make build
 ```sh
 ./ghac
 ./ghac --theme ocean   # start with a specific theme
+./ghac --legacy        # ASCII-only mode for VT220 and similar terminals
 ```
+
+ghac also detects legacy terminals automatically via `$TERM` (vt220,
+vt100, cons25, etc.) and enables ASCII mode without the flag.
 
 ghac reads `~/.config/.ghacrc` on startup. If the config file is missing
 or invalid it prints an error to stderr and exits with a non-zero status.

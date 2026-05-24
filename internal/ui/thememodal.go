@@ -48,7 +48,7 @@ func (s themeScreen) View() string {
 	for i, t := range Themes {
 		var line string
 		if i == s.cursor {
-			line = styleRowActive.Render("▶ " + t.Name)
+			line = styleRowActive.Render(symCursor + t.Name)
 		} else {
 			line = "  " + t.Name
 		}
