@@ -160,6 +160,14 @@ func (c *Client) Random(on bool) error {
 	return c.cmd.Random(on)
 }
 
+// UpdateLibrary sends the MPD update command for the given URI (directory
+// path relative to the music root). An empty string triggers a full library
+// rescan. The MPD job ID is discarded; the caller does not need to track it.
+func (c *Client) UpdateLibrary(uri string) error {
+	_, err := c.cmd.Update(uri)
+	return err
+}
+
 // mpdBase returns the final path segment of an MPD URI, which always uses
 // forward slashes regardless of the operating system.
 func mpdBase(p string) string {

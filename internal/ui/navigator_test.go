@@ -815,3 +815,49 @@ func TestNavGoUpResetsOffset(t *testing.T) {
 		t.Errorf("offset = %d after goUp, want 0", s.offset)
 	}
 }
+
+// --- U: update library ---
+
+func TestNavUShowsStatusMessage(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("U")})
+	if s.statusMsg != "Updating library..." {
+		t.Errorf("statusMsg = %q, want %q", s.statusMsg, "Updating library...")
+	}
+	if cmd == nil {
+		t.Error("U should return a clear-status command")
+	}
+}
+
+func TestNavUViewContainsStatusMessage(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("U")})
+	view := s.View()
+	if !strings.Contains(view, "Updating library...") {
+		t.Errorf("view should contain status message, got: %q", view)
+	}
+}
+
+func TestNavClearStatusMsgClearsStatus(t *testing.T) {
+	s := newTestNavigatorScreen()
+	s.statusMsg = "Updating library..."
+	s, _ = s.Update(navClearStatusMsg{})
+	if s.statusMsg != "" {
+		t.Errorf("statusMsg = %q after clear, want empty", s.statusMsg)
+	}
+}
+
+func TestNavUWhileConfirmPendingIsSwallowed(t *testing.T) {
+	// U should not fire while a confirmation is pending.
+	s := newTestNavigatorScreen() // cursor=0 (rock/, a directory)
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyEnter}) // triggers dir confirmation
+	if s.confirmPending == navConfirmNone {
+		t.Fatal("expected confirmation to be pending after enter on directory")
+	}
+	// Press U — it should be swallowed, not processed.
+	s, _ = s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("U")})
+	// Confirmation should still be pending (U did not resolve it).
+	if s.confirmPending == navConfirmNone {
+		t.Error("U should not clear a pending confirmation")
+	}
+}

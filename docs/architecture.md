@@ -397,6 +397,9 @@ Wraps `gompd` and exposes two concerns:
      the playback queue.
    - `Random(on)` — enables or disables MPD's random (shuffle)
      mode.
+   - `UpdateLibrary(uri)` — sends the MPD `update` command
+     scoped to `uri` (empty string for a full rescan). The MPD
+     job ID is discarded.
 
 2. **Idle listener** — a long-running goroutine that calls
    `gompd`'s `Watch` to block on MPD idle events. On each event
@@ -534,15 +537,18 @@ issuing playlist commands.
 (overhead=7) and owns `[]DirEntry`, a `map[string][]int`
 `inPlaylist` map (MPD URI → playlist positions, supporting
 duplicates), `currentPath` (current directory URI), terminal
-`width`, and confirmation prompt state (`confirmMsg string`,
-`confirmPending navConfirmKind`). Bulk enqueue/remove operations
-above `bulkEditThreshold` require y/n confirmation. `listCursor`
-provides cursor, viewport, selection, and `f<letter>` navigation.
-The entry list updates synchronously when the user navigates
-directories (calling `ListInfo` directly from `update`). The
-`inPlaylist` map updates from `MsgPlaylistChanged` via
-`withPlaylist()`. Holds a pointer to the MPD client for browsing
-and enqueue commands.
+`width`, confirmation prompt state (`confirmMsg string`,
+`confirmPending navConfirmKind`), and a transient `statusMsg
+string` (set on `U`, cleared after 3 seconds via
+`navClearStatusMsg`). Bulk enqueue/remove operations above
+`bulkEditThreshold` require y/n confirmation. `listCursor`
+provides cursor, viewport, selection, and `f<letter>`
+navigation. The entry list updates synchronously when the user
+navigates directories (calling `ListInfo` directly from
+`update`). The `inPlaylist` map updates from
+`MsgPlaylistChanged` via `withPlaylist()`. Holds a pointer to
+the MPD client for browsing, enqueue, and library-update
+commands.
 
 ## 9. Configuration
 

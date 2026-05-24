@@ -69,7 +69,7 @@ progresses.
 Below the now-playing bar, a persistent tab strip lists every
 screen at all times:
 
-```
+```text
 1:Volume  2:Playlist  3:Library  ?:Help
 ```
 
@@ -83,7 +83,7 @@ peer screen.
 Each screen is wrapped in a single-line border with the screen
 name embedded in the top edge:
 
-```
+```text
 ┌─ Player Volume ──────────────────────────────────────────┐
 │ screen content                                           │
 └──────────────────────────────────────────────────────────┘
@@ -191,7 +191,7 @@ can move freely after selecting songs.
 
 **Prefix layout** (5 characters before the song text):
 
-```
+```text
 ▶ >*  →  cursor + playing + selected
   >   →  playing only
    *  →  selected only
@@ -283,7 +283,7 @@ approximate a tab in the `nnn` file manager:
 
 **Prefix layout** (5 characters before the name):
 
-```
+```text
 ▶ *+  →  cursor + selected + in-playlist
   *   →  selected only
    +  →  in-playlist only (file already queued)
@@ -315,6 +315,8 @@ Selected entries are marked with a `*` prefix character.
 | `space`      | Toggle selection on the entry under cursor           |
 | `x`          | Remove selected file(s) from the playlist            |
 | `enter`      | Enqueue selected entries to the playlist             |
+| `U`          | Update MPD library from the current directory;
+                shows a transient `Updating library...` notice  |
 
 **Fast-jump behavior (`f <letter>`):**
 

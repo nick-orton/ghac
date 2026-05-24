@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"ghac/internal/mpd"
 )
+
+// navClearStatusMsg is sent after a delay to clear the transient status line.
+type navClearStatusMsg struct{}
 
 // navConfirmKind identifies the bulk-edit operation awaiting y/n confirmation.
 type navConfirmKind int
@@ -32,6 +36,8 @@ type navigatorScreen struct {
 	// confirmation prompt state (zero value = no pending confirmation)
 	confirmMsg     string         // non-empty = awaiting y/n; shown at bottom of View()
 	confirmPending navConfirmKind // action to execute on 'y'
+	// transient status message (e.g. "Updating library..."); cleared after a delay
+	statusMsg string
 }
 
 func newNavigatorScreen(mc *mpd.Client, entries []mpd.DirEntry) navigatorScreen {
@@ -75,6 +81,9 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 		return s.withWidth(msg.Width).withHeight(msg.Height), nil
 	case mpd.MsgPlaylistChanged:
 		return s.withPlaylist(msg.Entries), nil
+	case navClearStatusMsg:
+		s.statusMsg = ""
+		return s, nil
 	case tea.KeyMsg:
 		// While a confirmation is pending capturesAllInput() returns true, so
 		// global handlers have already been bypassed. Only y/n/esc are
@@ -157,6 +166,15 @@ func (s navigatorScreen) Update(msg tea.Msg) (navigatorScreen, tea.Cmd) {
 				s.confirmPending = navConfirmEnqueue
 			} else {
 				s = s.enqueue()
+			}
+		case "U":
+			if s.mc != nil {
+				_ = s.mc.UpdateLibrary(s.currentPath)
+			}
+			s.statusMsg = "Updating library..."
+			return s, func() tea.Msg {
+				time.Sleep(3 * time.Second)
+				return navClearStatusMsg{}
 			}
 		}
 	}
@@ -367,6 +385,9 @@ func (s navigatorScreen) View() string {
 
 	if s.confirmMsg != "" {
 		b.WriteString(styleRowActive.Render(s.confirmMsg))
+		b.WriteString("\n")
+	} else if s.statusMsg != "" {
+		b.WriteString(stylePlaceholder.Render(s.statusMsg))
 		b.WriteString("\n")
 	}
 	return b.String()
