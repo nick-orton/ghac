@@ -382,12 +382,36 @@ requirement for running ghac.
 
 ## 12. Terminal Compatibility Assumptions
 
-- UTF-8 encoding: required.
-- 256-color support: required (color codes above 15 are used).
+- UTF-8 encoding: required in normal mode; ASCII-only in legacy mode.
+- 256-color support: required in normal mode; not used in legacy mode.
 - True-color (24-bit): not assumed; do not use hex color strings.
 - Minimum width: 80 columns (components default to this when
   `width == 0` or `width < 4`).
 - Alt-screen mode: always active; the TUI owns the full display.
+
+### 12.1 Legacy Mode
+
+When `$TERM` indicates a terminal that cannot render Unicode or 256
+colors (vt220, vt100, vt102, vt52, ansi, dumb, cons25, wsvt25,
+cygwin), or when `--legacy` is passed on the CLI, ghac activates
+legacy mode automatically:
+
+- All Unicode block-drawing and box-drawing characters are replaced
+  with ASCII equivalents (see Symbol Map in the enhancement doc).
+- Box-drawing borders around the active screen are removed; the
+  screen title is rendered as `-- Title --` on its own line.
+- All color codes are stripped; bold, faint, and reverse-video are
+  used for visual distinction.
+- The now-playing bar uses reverse-video (`Reverse(true)`) instead
+  of a background color.
+- Legacy mode is not a selectable theme and does not appear in the
+  theme modal.
+
+`internal/ui/symbols.go` holds the symbol variables; `UseASCIISymbols()`
+switches them. `internal/ui/theme.go` holds `IsLegacyTerminal()`,
+`EnableLegacyMode()`, and `applyLegacyTheme()`. `internal/ui/model.go`
+calls `legacyHeader()` instead of `borderBox()` for the screen area
+when `legacyMode` is true.
 
 ## 13. Adding a New Screen
 

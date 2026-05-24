@@ -304,7 +304,7 @@ func (s playlistScreen) View() string {
 func (s playlistScreen) renderRow(i int, entry mpd.PlaylistEntry) string {
 	cursor := "  "
 	if i == s.cursor {
-		cursor = "▶ "
+		cursor = symCursor
 	}
 
 	playing := " "
@@ -333,7 +333,7 @@ func (s playlistScreen) renderRow(i int, entry mpd.PlaylistEntry) string {
 // preferring "Title – Artist" metadata over the raw filename.
 func entryDisplayName(e mpd.PlaylistEntry) string {
 	if e.Title != "" && e.Artist != "" {
-		return e.Title + " \u2013 " + e.Artist
+		return e.Title + symSeparator + e.Artist
 	}
 	if e.Title != "" {
 		return e.Title

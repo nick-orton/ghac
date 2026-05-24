@@ -412,7 +412,7 @@ func (s navigatorScreen) View() string {
 func (s navigatorScreen) renderRow(i int, entry mpd.DirEntry) string {
 	cursor := "  "
 	if i == s.cursor {
-		cursor = "▶ "
+		cursor = symCursor
 	}
 
 	sel := " "
@@ -463,7 +463,7 @@ func (s navigatorScreen) renderRow(i int, entry mpd.DirEntry) string {
 // Returns "" when no useful metadata is present.
 func navMeta(entry mpd.DirEntry) string {
 	if entry.Song.Title != "" && entry.Song.Artist != "" {
-		return entry.Song.Title + " \u2013 " + entry.Song.Artist
+		return entry.Song.Title + symSeparator + entry.Song.Artist
 	}
 	if entry.Song.Title != "" {
 		return entry.Song.Title

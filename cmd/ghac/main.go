@@ -16,6 +16,7 @@ import (
 
 func main() {
 	themeFlag := flag.String("theme", "", "theme name to use (overrides config and saved state)")
+	legacyFlag := flag.Bool("legacy", false, "force ASCII-only rendering for legacy terminals (VT220, etc.)")
 	flag.Parse()
 
 	home, err := os.UserHomeDir()
@@ -29,6 +30,12 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ghac: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Enable legacy mode before any UI setup so symbol vars and style vars are
+	// set correctly before the root model is constructed.
+	if *legacyFlag || ui.IsLegacyTerminal() {
+		ui.EnableLegacyMode()
 	}
 
 	// Register user-defined themes from config before resolving the active theme

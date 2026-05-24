@@ -66,7 +66,9 @@ ghac/
 │       ├── listcursor.go      # Shared list navigation (cursor, viewport, selection)
 │       ├── nowplaying.go      # Now-playing bar component
 │       ├── styles.go          # Shared lipgloss styles (color vars, reassigned by applyTheme)
+│       ├── symbols.go         # Render symbol vars (Unicode default); UseASCIISymbols() for legacy
 │       ├── theme.go           # Theme type, applyTheme, XDG state I/O; embeds themes.toml
+│                              #   also: IsLegacyTerminal, EnableLegacyMode, applyLegacyTheme
 │       ├── themes.toml        # Built-in theme definitions (embedded at build time)
 │       ├── thememodal.go      # Theme selector modal screen
 │       ├── volume.go          # Player Volume screen (SnapCast clients)
